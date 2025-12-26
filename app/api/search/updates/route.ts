@@ -1,82 +1,13 @@
-export function buildUpdateAnalysisPrompt(query: string, searchResults: GoogleSearchResult[], lastUpdateDate: string): string {
-  const searchContent = searchResults.map((result, index) => 
-    `Result ${index + 1}:
-Title: ${result.title}
-Content: ${result.snippet}
-Source: ${result.link}
-Published: ${result.publishedDate || 'Date not available'}
----`
-  ).join('\n\n');
+import { NextRequest, NextResponse } from 'next/server';
+import { google } from 'googleapis';
+import Groq from 'groq-sdk';
+import { createClient } from '@supabase/supabase-js';
+import { buildUpdateAnalysisPrompt } from './prompts';
 
-  return `Analyze developments for: "${query}" occurring AFTER ${lastUpdateDate}
-
-Return ONLY valid JSON. Start with { and end with }.
-
-{
-  "has_new_updates": true,
-  "updates": [
-    {
-      "date": "YYYY-MM-DD",
-      "title": "Max 100 characters",
-      "description": "800-1000 characters",
-      "relevance_score": 8.5,
-      "key_insights": ["insight 1", "insight 2", "insight 3"],
-      "summary": "Max 200 characters",
-      "sources": ["url1", "url2"]
-    }
-  ]
-}
-
-REQUIREMENTS:
-
-Search ALL results. Extract ONLY content published AFTER ${lastUpdateDate}.
-
-Group findings by publication date. Create SEPARATE update object for EACH distinct date.
-
-If NO content after ${lastUpdateDate} exists, return: {"has_new_updates": false, "updates": []}
-
-Each update represents ONE specific date only.
-
-Date field must be YYYY-MM-DD format matching article publication date.
-
-Title must be newsworthy and specific to that date's development. Maximum 100 characters.
-
-Description must be 800-1000 characters covering that date's developments only. Include specific data, facts, implications. Synthesize information from sources published on that date.
-
-Relevance score must be 0-10 indicating significance of that date's updates.
-
-Key insights must be 3-5 complete sentences covering distinct findings from that specific date.
-
-Summary must be under 200 characters providing quick overview of that date's updates.
-
-Sources array must list URLs of articles used for that specific date's update.
-
-Sort updates chronologically from oldest to newest.
-
-Do NOT combine multiple dates into one update.
-
-Do NOT include information from before ${lastUpdateDate}.
-
-Focus on changes, new developments, and specific events from each date.
-
-Use exact numbers, complete names, precise data points, specific timestamps.
-
-Escape quotes with backslash.
-
-LAST UPDATE: ${lastUpdateDate}
-
-RESULTS:
-${searchContent}
-
-Return ONLY JSON.`;
-}
-
-interface GoogleSearchResult {
-  title: string;
-  snippet: string;
-  link: string;
-  publishedDate?: string;
-}
+const supabase = createClient(
+  process.env.SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
 
 interface Config {
   groq: {
@@ -86,22 +17,10 @@ interface Config {
   };
 }
 
-export function loadConfig(): Config {
-  const config: Config = require('./config.json');
+function loadConfig(): Config {
+  const config: Config = require('../../config.json');
   return config;
 }
-
-import { NextRequest, NextResponse } from 'next/server';
-import { google } from 'googleapis';
-import Groq from 'groq-sdk';
-import { createClient } from '@supabase/supabase-js';
-import { buildUpdateAnalysisPrompt } from './prompts';
-import { loadConfig } from './config';
-
-const supabase = createClient(
-  process.env.SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
 
 const config = loadConfig();
 
@@ -138,6 +57,7 @@ interface UpdateRecord {
 interface DebugInfo {
   event_fetch_time: number;
   google_search_time: number;
+  web_fetch_time: number;
   groq_analysis_time: number;
   database_insert_time: number;
   total_processing_time: number;
@@ -146,6 +66,14 @@ interface DebugInfo {
   last_updated_date: string | null;
   days_since_last_update: number;
   has_new_content: boolean;
+}
+
+interface GoogleSearchResult {
+  title: string;
+  snippet: string;
+  link: string;
+  publishedDate?: string;
+  fullContent?: string;
 }
 
 const customSearch = google.customsearch('v1');
@@ -191,11 +119,46 @@ function isArticleNewer(articleDate: Date | null, lastUpdated: Date): boolean {
   return articleDate > lastUpdated;
 }
 
+async function fetchPageContent(url: string): Promise<string> {
+  try {
+    const response = await fetch(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+      },
+      signal: AbortSignal.timeout(10000)
+    });
+    
+    if (!response.ok) {
+      return '';
+    }
+    
+    const html = await response.text();
+    
+    const textContent = html
+      .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+      .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '')
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/&nbsp;/g, ' ')
+      .replace(/&amp;/g, '&')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&quot;/g, '"')
+      .replace(/&#39;/g, "'")
+      .replace(/\s+/g, ' ')
+      .trim();
+    
+    return textContent.substring(0, 8000);
+  } catch (error) {
+    return '';
+  }
+}
+
 async function processEventUpdate(event_id: string, apiKey: string) {
   const startTime = Date.now();
   const debugInfo: DebugInfo = {
     event_fetch_time: 0,
     google_search_time: 0,
+    web_fetch_time: 0,
     groq_analysis_time: 0,
     database_insert_time: 0,
     total_processing_time: 0,
@@ -280,8 +243,17 @@ async function processEventUpdate(event_id: string, apiKey: string) {
       });
     }
 
+    const webFetchStart = Date.now();
+    const resultsWithContent = await Promise.all(
+      filteredResults.map(async (result) => ({
+        ...result,
+        fullContent: await fetchPageContent(result.link)
+      }))
+    );
+    debugInfo.web_fetch_time = Date.now() - webFetchStart;
+
     const groqAnalysisStart = Date.now();
-    const analysis = await analyzeWithGroq(filteredResults, event.query, lastUpdated.toISOString());
+    const analysis = await analyzeWithGroq(resultsWithContent, event.query, lastUpdated.toISOString());
     debugInfo.groq_analysis_time = Date.now() - groqAnalysisStart;
     
     if (!analysis || !analysis.has_new_updates || analysis.updates.length === 0) {
