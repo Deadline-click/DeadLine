@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { google } from 'googleapis';
 import Groq from 'groq-sdk';
 import { createClient } from '@supabase/supabase-js';
-import { buildUpdateAnalysisPrompt } from './prompts';
+import { buildUpdateAnalysisPrompt } from './prompt';
 
 const supabase = createClient(
   process.env.SUPABASE_URL!,
