@@ -1,75 +1,97 @@
 export function buildAnalysisPrompt(query: string, articleContent: string, topSnippets: string): string {
-  return `Extract ALL verified facts: "${query}"
+  return `Extract verified facts about: "${query}"
 
-SOURCES:
-${topSnippets}
+Return ONLY valid JSON (no markdown, no code blocks, no text). Start with { and end with }.
 
-${articleContent}
-
-JSON OUTPUT:
 {
-  "location": "City, State/Country - specific venue/address",
+  "title": "30-40 word descriptive title with accurate names (if multiple accused/victims, mention count)",
+  "headline": "20-30 word headline (no location)",
+  "location": "Complete address: venue, area, city, district, state, country",
   "details": {
-    "headline": "15-25 word factual lead",
-    "overview": "400-500 word comprehensive narrative with **important terms** highlighted. Cover complete story: full context, all parties with roles, circumstances, immediate consequences, current status, broader impact. Highlight 2-3 words at once: **term here**. Examples: **15 criminal charges**, **Senior Inspector Patil**, **Rs 2,00,000 compensation**.",
+    "overview": "600-800 word narrative. Use **bold** 2-3 times max for critical terms (2-3 words each). Cover: background, parties, chronology, consequences, legal proceedings, status, implications.",
     "keyPoints": [
-      {"label": "Choose concise 1-3 word label", "value": "Complete detailed information"},
-      "Continue with 8-15 points covering ALL aspects not in overview"
+      {"label": "1-2 words", "value": "Max 10 words with exact facts"}
     ]
   },
-  "accused": [
-    {
-      "summary": "2-3 sentences maximum: full identification (name, age, occupation, affiliation, location), role in event, specific actions attributed. Dense and comprehensive.",
-      "details": [
-        {"label": "Choose appropriate label", "value": "Exhaustive information with specifics"},
-        "4-10 label-value pairs covering ALL facts about this person not in summary"
-      ]
-    }
-  ],
-  "victims": [
-    {
-      "summary": "2-3 sentences maximum: full identification (name if public, age, gender, occupation, location), relationship to accused/event, harm suffered. Dense and comprehensive.",
-      "details": [
-        {"label": "Choose appropriate label", "value": "Exhaustive information with specifics"},
-        "4-10 label-value pairs covering ALL facts about this person not in summary"
-      ]
-    }
-  ],
+  "accused": {
+    "individuals": [
+      {
+        "name": "Full accurate name",
+        "summary": "4-6 sentences: name/aliases, age, occupation/employer, address, role in incident, actions/timeline, relationship to victims, family/criminal history, custody status. NO bold.",
+        "details": [
+          {"label": "Accused", "value": "Accused party information"}
+        ]
+      }
+    ],
+    "organizations": [
+      {
+        "name": "Full accurate organization name",
+        "summary": "4-6 sentences: name/registration, type/industry, jurisdiction, leadership, role, actions/failures, relationship, violations, history, response. NO bold.",
+        "details": [
+          {"label": "Accused", "value": "Accused party information"}
+        ]
+      }
+    ]
+  },
+  "victims": {
+    "individuals": [
+      {
+        "name": "Full accurate name or description",
+        "summary": "4-6 sentences: name/description, age/gender, occupation/workplace, address, relationship to accused, harm/injuries, treatment/hospital, condition/prognosis, family impact, compensation. NO bold.",
+        "details": [
+          {"label": "Victim", "value": "Victim party information"}
+        ]
+      }
+    ],
+    "groups": [
+      {
+        "name": "Accurate group description",
+        "summary": "4-6 sentences: size/demographics, composition, location/community, relationship, collective harm, impact, legal action, support. NO bold.",
+        "details": [
+          {"label": "Victims", "value": "Victim party information"}
+        ]
+      }
+    ]
+  },
   "timeline": [
     {
-      "date": "Month Day, Year",
-      "summary": "12-20 words describing date significance",
+      "date": "March 15, 2024",
+      "context": "15-25 words",
       "events": [
-        {"time": "Exact time or period", "description": "60-100 words: who, what actions, where, evidence, legal filings, witness statements, forensics, medical details, amounts, responses"},
-        "6-15 events per date (10-15 for critical dates: incident/arrest/trial/verdict/sentencing; 6-10 for regular)"
+        {
+          "time": "2:30 PM",
+          "description": "150-200 words: complete actions/sequence, people/roles, location/venue, evidence/items, witness statements, medical procedures, legal filings, monetary amounts, official responses, quotes, conditions, factors, aftermath.",
+          "participants": "Complete list: Name (Role, Age, Occupation)",
+          "evidence": "Exhaustive list with specifics"
+        }
       ]
     }
   ]
 }
 
-CRITICAL RULES:
+RULES:
 
-EXTRACT ONLY FROM SOURCES: Never invent, assume, or fabricate. If information not explicitly in sources, DO NOT include.
+1. Extract every fact, date, name, number, quote from sources
+2. Title: 30-40 words with accurate names; if multiple accused/victims, mention count (e.g., "3 accused")
+3. Headline: Who did what to whom and outcome (NO location)
+4. Location: Complete address hierarchy
+5. Overview: 600-800 words, single paragraph, **bold** 2-3 times only
+6. Key Points: 10-15 NEW facts not in overview
+7. Each accused/victim entry MUST have "name" as first field with accurate spelling
+8. Summaries: Exactly 4-6 sentences, NO bold formatting
+9. Details: Use "Accused"/"Victim"/"Victims" as labels, values contain party-specific information. 5-8 pairs with NEW info not in summary
+10. Timeline: Entry per date mentioned, chronological. Critical dates: 15-25 events, significant: 10-15, routine: 5-8
+11. Use exact numbers, complete names/titles, full statute sections, exact currency (₹, Rs, $), precise timestamps
+12. Each fact appears once in most logical location
+13. Bold only in overview: **text** format (2-3 times max)
+14. Escape quotes with backslash
+15. ONLY include label-value pairs for information that IS available - skip if not mentioned in sources
 
-OVERVIEW: 400-500 word flowing narrative. Use **bold** for important terms (2-3 words): names, charges, amounts, dates, locations. Tell complete story chronologically.
+SOURCES:
+${topSnippets}
 
-KEY POINTS: 8-15 label-value pairs. Each reveals DIFFERENT information not in overview. Choose natural, descriptive labels (1-3 words) that fit the content. Values must be comprehensive with full context, specifics, evidence. Cover different dimensions: legal, financial, organizational, personal, investigative, medical, social impact.
+ARTICLE:
+${articleContent}
 
-PARTIES: Create separate object for EACH accused/victim. Include individuals, companies, organizations, groups, crowds, communities, or property as applicable.
-
-SUMMARIES: Exactly 2-3 sentences. Pack maximum information: who they are, background, their role, their actions, impact on them or by them.
-
-DETAILS: 4-10 label-value pairs per party adding NEW facts not in summary. Choose intelligent labels that describe the content (not generic). Values exhaustive with: exact numbers, full names/titles/ranks/badges, statute codes/sections, amounts with currency, precise dates/times, complete addresses, medical procedures/diagnoses/facilities, case numbers/dockets, direct quotes, forensic findings, witness accounts.
-
-TIMELINE: Create entry for EVERY date mentioned. 6-15 events per date depending on significance. Each event: specific time (or period) + 60-100 word description with full details of what happened, who was involved, where, evidence collected, statements made, procedures done, amounts involved.
-
-PRECISION: Use exact numbers with full precision. Complete legal names. Official titles and ranks. Statute sections. Medical terminology. Case numbers. Addresses. Currency symbols.
-
-COMPREHENSIVENESS: Extract EVERY name, company, organization, group, location, amount, date, time, charge, statute, piece of evidence, injury, medical term, treatment, legal proceeding, witness statement, official statement, forensic finding, sentence, bail amount, fine, organizational response, community impact mentioned in sources. Process chronologically: analyze oldest sources first for background context, then layer developments from newer sources.
-
-NO REPETITION: Each fact appears ONCE in the most logical section. If mentioned in overview, don't repeat in keyPoints. If in summary, don't repeat in details. If in one detail, don't include in another.
-
-INTELLIGENCE: Choose labels that accurately describe the specific information. Don't use same label twice within a section. Make labels meaningful and contextual to the content.
-
-OUTPUT: Valid JSON only. Proper string escaping for quotes. No markdown formatting in output. No preamble or explanation.`;
+Return ONLY JSON starting with { and ending with }.`;
 }

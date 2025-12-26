@@ -10,29 +10,39 @@ interface KeyFact {
 interface TimelineEvent {
   time?: string;
   description: string;
+  participants?: string;
+  evidence?: string;
+}
+
+interface TimelineEntry {
+  date: string;
+  context: string;
+  events?: TimelineEvent[];
+}
+
+interface PartyDetails {
+  name: string;
+  summary: string;
+  details?: KeyFact[];
 }
 
 interface EventDetails {
-  event_id: number;
+  event_id: string;
   location: string;
+  headline: string;
   details: {
-    headline: string;
     overview: string;
     keyPoints?: KeyFact[];
   };
-  accused: Array<{
-    summary: string;
-    details?: KeyFact[];
-  }>;
-  victims: Array<{
-    summary: string;
-    details?: KeyFact[];
-  }>;
-  timeline: Array<{
-    date: string;
-    summary: string;
-    events?: TimelineEvent[];
-  }>;
+  accused: {
+    individuals?: PartyDetails[];
+    organizations?: PartyDetails[];
+  };
+  victims: {
+    individuals?: PartyDetails[];
+    groups?: PartyDetails[];
+  };
+  timeline: TimelineEntry[];
   sources: string[];
   images: string[];
   created_at: string;
@@ -41,7 +51,7 @@ interface EventDetails {
 
 interface EventUpdate {
   update_id: number;
-  event_id: number;
+  event_id: string;
   title: string;
   description: string;
   update_date: string;
@@ -68,6 +78,8 @@ function Skeleton() {
 }
 
 function HighlightedText({ text }: { text: string }) {
+  if (!text) return null;
+  
   const parts = text.split(/(\*\*[^*]+\*\*)/g);
   
   return (
@@ -99,10 +111,20 @@ export default function EventDetailsComponent({ eventDetails, eventUpdates }: Ev
     return <Skeleton />;
   }
 
-  const accused = eventDetails.accused || [];
-  const victims = eventDetails.victims || [];
+  const accused = eventDetails.accused || { individuals: [], organizations: [] };
+  const victims = eventDetails.victims || { individuals: [], groups: [] };
   const timeline = eventDetails.timeline || [];
-  const details = eventDetails.details || { headline: '', overview: '', keyPoints: [] };
+  const details = eventDetails.details || { overview: '', keyPoints: [] };
+
+  const allAccused = [
+    ...(accused.individuals || []),
+    ...(accused.organizations || [])
+  ];
+
+  const allVictims = [
+    ...(victims.individuals || []),
+    ...(victims.groups || [])
+  ];
 
   return (
     <div className="max-w-7xl mx-auto">
@@ -112,7 +134,7 @@ export default function EventDetailsComponent({ eventDetails, eventUpdates }: Ev
             Overview
           </h2>
           <p className="text-xs leading-loose text-justify mb-4 text-black">
-            <HighlightedText text={details.overview} />
+            <HighlightedText text={details.overview || ''} />
           </p>
           
           {details.keyPoints && details.keyPoints.length > 0 && (
@@ -133,16 +155,19 @@ export default function EventDetailsComponent({ eventDetails, eventUpdates }: Ev
       </article>
 
       <section className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
-        {accused.length > 0 && (
+        {allAccused.length > 0 && (
           <div className="bg-white p-4 border border-black">
             <h3 className="text-sm font-bold uppercase tracking-tight border-b border-black pb-2 mb-3 text-black">
               Accused Parties
             </h3>
             <div className="space-y-4">
-              {accused.map((person, index) => (
+              {allAccused.map((person, index) => (
                 <div key={index} className="pb-4 border-b border-gray-200 last:border-b-0 last:pb-0">
+                  <h4 className="text-sm font-bold mb-2 text-black">
+                    {person.name}
+                  </h4>
                   <p className="text-[11px] leading-relaxed text-justify mb-3 text-black">
-                    {person.summary}
+                    {person.summary || ''}
                   </p>
                   {person.details && person.details.length > 0 && (
                     <div className="space-y-1.5 pl-2 border-l-2 border-black">
@@ -164,16 +189,19 @@ export default function EventDetailsComponent({ eventDetails, eventUpdates }: Ev
           </div>
         )}
 
-        {victims.length > 0 && (
+        {allVictims.length > 0 && (
           <div className="bg-white p-4 border border-black">
             <h3 className="text-sm font-bold uppercase tracking-tight border-b border-black pb-2 mb-3 text-black">
               Affected Parties
             </h3>
             <div className="space-y-4">
-              {victims.map((victim, index) => (
+              {allVictims.map((victim, index) => (
                 <div key={index} className="pb-4 border-b border-gray-200 last:border-b-0 last:pb-0">
+                  <h4 className="text-sm font-bold mb-2 text-black">
+                    {victim.name}
+                  </h4>
                   <p className="text-[11px] leading-relaxed text-justify mb-3 text-black">
-                    {victim.summary}
+                    {victim.summary || ''}
                   </p>
                   {victim.details && victim.details.length > 0 && (
                     <div className="space-y-1.5 pl-2 border-l-2 border-black">
@@ -205,32 +233,42 @@ export default function EventDetailsComponent({ eventDetails, eventUpdates }: Ev
             <div className="relative">
               <div className="absolute left-2.5 top-0 bottom-0 w-0.5 bg-black"></div>
               <div className="space-y-3">
-                {timeline.map((event, index) => (
+                {timeline.map((entry, index) => (
                   <div key={index} className="relative pl-7">
                     <div className="absolute left-1 top-1.5 w-3 h-3 bg-black border-2 border-white"></div>
                     <div>
-                      {event.date && (
+                      {entry.date && (
                         <div className="mb-2">
                           <span className="inline-block px-1.5 py-0.5 bg-black text-white text-[10px] uppercase tracking-wide font-bold">
-                            {event.date}
+                            {entry.date}
                           </span>
                         </div>
                       )}
                       <p className="text-[11px] font-bold leading-relaxed mb-2 text-black">
-                        {event.summary}
+                        {entry.context}
                       </p>
-                      {event.events && event.events.length > 0 && (
+                      {entry.events && entry.events.length > 0 && (
                         <div className="space-y-2 pl-2 border-l border-gray-300">
-                          {event.events.map((evt, evtIndex) => (
+                          {entry.events.map((evt, evtIndex) => (
                             <div key={evtIndex}>
                               {evt.time && (
                                 <span className="inline-block px-1.5 py-0.5 bg-gray-800 text-white text-[10px] mb-1">
                                   {evt.time}
                                 </span>
                               )}
-                              <p className="text-[11px] leading-relaxed text-black">
+                              <p className="text-[11px] leading-relaxed text-black mb-1">
                                 {evt.description}
                               </p>
+                              {evt.participants && (
+                                <p className="text-[10px] text-gray-600 italic mb-1">
+                                  <span className="font-bold">Participants:</span> {evt.participants}
+                                </p>
+                              )}
+                              {evt.evidence && (
+                                <p className="text-[10px] text-gray-600 italic">
+                                  <span className="font-bold">Evidence:</span> {evt.evidence}
+                                </p>
+                              )}
                             </div>
                           ))}
                         </div>

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import Groq from 'groq-sdk';
-import config from '../../../api/config.json';
+import config from '../../config.json';
 import { buildAnalysisPrompt } from './prompt';
 
 const supabase = createClient(
@@ -21,26 +21,55 @@ const MAX_TOTAL_CHARS = MAX_TOKENS_BUDGET * AVG_CHARS_PER_TOKEN;
 const MAX_ARTICLES_PER_PERIOD = 8;
 const MAX_CHARS_PER_SITE = 3000;
 
+interface AccusedIndividual {
+  summary: string;
+  details: Array<{ label: string; value: string }>;
+}
+
+interface AccusedOrganization {
+  summary: string;
+  details: Array<{ label: string; value: string }>;
+}
+
+interface VictimIndividual {
+  summary: string;
+  details: Array<{ label: string; value: string }>;
+}
+
+interface VictimGroup {
+  summary: string;
+  details: Array<{ label: string; value: string }>;
+}
+
+interface TimelineEvent {
+  time: string;
+  description: string;
+  participants: string;
+  evidence: string;
+}
+
+interface TimelineEntry {
+  date: string;
+  context: string;
+  events: TimelineEvent[];
+}
+
 interface EventDetails {
+  headline: string;
   location: string;
   details: {
-    headline: string;
     overview: string;
-    keyPoints: string[];
+    keyPoints: Array<{ label: string; value: string }>;
   };
-  accused: Array<{
-    summary: string;
-    details: string[];
-  }>;
-  victims: Array<{
-    summary: string;
-    details: string[];
-  }>;
-  timeline: Array<{
-    date: string;
-    summary: string;
-    details: string[];
-  }>;
+  accused: {
+    individuals: AccusedIndividual[];
+    organizations: AccusedOrganization[];
+  };
+  victims: {
+    individuals: VictimIndividual[];
+    groups: VictimGroup[];
+  };
+  timeline: TimelineEntry[];
   sources: string[];
   images: string[];
 }
@@ -509,7 +538,7 @@ async function processArticlesWithGroq(scrapedData: ScrapedData, query: string):
       messages: [
         {
           role: "system",
-          content: "You are a precise factual data extraction system. Output ONLY valid JSON. No markdown, no backticks, no preamble. Start with { and end with }. Properly escape all quotes in strings. Analyze all provided sources thoroughly and extract every relevant detail without repetition. Pay special attention to chronological development and evolution of events over time."
+          content: "You are a precise factual data extraction system. Output ONLY valid JSON. No markdown, no backticks, no preamble. Start with { and end with }. Properly escape all quotes in strings. Follow the exact structure provided: headline at root level, location at root level, details with overview and keyPoints, accused with individuals and organizations arrays, victims with individuals and groups arrays, timeline with date/context/events structure. Extract every relevant detail without repetition."
         },
         {
           role: "user",
@@ -552,31 +581,38 @@ async function processArticlesWithGroq(scrapedData: ScrapedData, query: string):
       throw new Error(`Invalid JSON format: ${parseError instanceof Error ? parseError.message : 'Parse error'}`);
     }
     
-    if (!parsedData.details || typeof parsedData.details !== 'object') {
-      parsedData.details = {
-        headline: parsedData.details || '',
-        overview: '',
-        keyPoints: []
-      };
-    }
+    // Validate and normalize the structure to match the prompt exactly
+    const normalizedData: Omit<EventDetails, 'images' | 'sources'> = {
+      headline: parsedData.headline || '',
+      location: parsedData.location || '',
+      details: {
+        overview: parsedData.details?.overview || '',
+        keyPoints: Array.isArray(parsedData.details?.keyPoints) 
+          ? parsedData.details.keyPoints 
+          : []
+      },
+      accused: {
+        individuals: Array.isArray(parsedData.accused?.individuals) 
+          ? parsedData.accused.individuals 
+          : [],
+        organizations: Array.isArray(parsedData.accused?.organizations) 
+          ? parsedData.accused.organizations 
+          : []
+      },
+      victims: {
+        individuals: Array.isArray(parsedData.victims?.individuals) 
+          ? parsedData.victims.individuals 
+          : [],
+        groups: Array.isArray(parsedData.victims?.groups) 
+          ? parsedData.victims.groups 
+          : []
+      },
+      timeline: Array.isArray(parsedData.timeline) 
+        ? parsedData.timeline 
+        : []
+    };
     
-    if (!parsedData.accused || !Array.isArray(parsedData.accused)) {
-      parsedData.accused = [];
-    }
-    
-    if (!parsedData.victims || !Array.isArray(parsedData.victims)) {
-      parsedData.victims = [];
-    }
-    
-    if (!parsedData.timeline || !Array.isArray(parsedData.timeline)) {
-      parsedData.timeline = [];
-    }
-    
-    if (!parsedData.location) {
-      parsedData.location = '';
-    }
-    
-    return parsedData;
+    return normalizedData;
     
   } catch (error) {
     throw new Error(`Failed to process with Groq API: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -615,6 +651,7 @@ async function saveEventDetails(event_id: string, structuredData: EventDetails) 
     dbOperation = supabase
       .from('event_details')
       .update({
+        headline: structuredData.headline,
         location: structuredData.location,
         details: structuredData.details,
         accused: structuredData.accused,
@@ -630,6 +667,7 @@ async function saveEventDetails(event_id: string, structuredData: EventDetails) 
       .from('event_details')
       .insert({
         event_id: event_id,
+        headline: structuredData.headline,
         location: structuredData.location,
         details: structuredData.details,
         accused: structuredData.accused,
@@ -729,10 +767,12 @@ export async function GET(request: NextRequest) {
       sources_analyzed: [...new Set(scrapedData.articles.map(a => a.source))].join(', '),
       chronological_breakdown: periodBreakdown,
       analysis_summary: {
+        headline: structuredData.headline,
         location: structuredData.location,
-        headline: structuredData.details.headline,
-        accused_count: structuredData.accused.length,
-        victims_count: structuredData.victims.length,
+        accused_individuals_count: structuredData.accused.individuals.length,
+        accused_organizations_count: structuredData.accused.organizations.length,
+        victim_individuals_count: structuredData.victims.individuals.length,
+        victim_groups_count: structuredData.victims.groups.length,
         timeline_events: structuredData.timeline.length,
         key_points_count: structuredData.details.keyPoints?.length || 0,
         total_content_analyzed: scrapedData.articles.reduce((sum, article) => sum + article.content.length, 0)
@@ -774,10 +814,12 @@ export async function POST(request: NextRequest) {
       sources_analyzed: [...new Set(scrapedData.articles.map(a => a.source))].join(', '),
       chronological_breakdown: periodBreakdown,
       analysis_summary: {
+        headline: structuredData.headline,
         location: structuredData.location,
-        headline: structuredData.details.headline,
-        accused_count: structuredData.accused.length,
-        victims_count: structuredData.victims.length,
+        accused_individuals_count: structuredData.accused.individuals.length,
+        accused_organizations_count: structuredData.accused.organizations.length,
+        victim_individuals_count: structuredData.victims.individuals.length,
+        victim_groups_count: structuredData.victims.groups.length,
         timeline_events: structuredData.timeline.length,
         key_points_count: structuredData.details.keyPoints?.length || 0,
         total_content_analyzed: scrapedData.articles.reduce((sum, article) => sum + article.content.length, 0)

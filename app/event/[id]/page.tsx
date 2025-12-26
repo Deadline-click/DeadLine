@@ -3,27 +3,46 @@ import ImageSlider from '../../components/ImageSlider';
 import EventDetailsComponent from '../../components/EventDetails';
 import SourcesComponent from '../../components/Sources';
 
+interface KeyFact {
+  label: string;
+  value: string;
+}
+
+interface TimelineEvent {
+  time?: string;
+  description: string;
+  participants?: string;
+  evidence?: string;
+}
+
+interface TimelineEntry {
+  date: string;
+  context: string;
+  events?: TimelineEvent[];
+}
+
+interface PartyDetails {
+  summary: string;
+  details?: KeyFact[];
+}
+
 interface EventDetails {
-  event_id: number;
+  event_id: string;
   location: string;
+  headline: string;
   details: {
-    headline: string;
     overview: string;
-    keyPoints: string[];
-  } | string;
-  accused: Array<{
-    summary: string;
-    details: string[];
-  }> | string;
-  victims: Array<{
-    summary: string;
-    details: string[];
-  }> | string;
-  timeline: Array<{
-    date: string;
-    summary: string;
-    details: string[];
-  }> | string;
+    keyPoints?: KeyFact[];
+  };
+  accused: {
+    individuals?: PartyDetails[];
+    organizations?: PartyDetails[];
+  };
+  victims: {
+    individuals?: PartyDetails[];
+    groups?: PartyDetails[];
+  };
+  timeline: TimelineEntry[];
   sources: string[];
   images: string[];
   created_at: string;
@@ -32,7 +51,7 @@ interface EventDetails {
 
 interface EventUpdate {
   update_id: number;
-  event_id: number;
+  event_id: string;
   title: string;
   description: string;
   update_date: string;
@@ -49,17 +68,6 @@ interface EventUpdatesResponse {
   count: number;
 }
 
-function parseJsonField<T>(field: T | string, fallback: T): T {
-  if (typeof field === 'string') {
-    try {
-      return JSON.parse(field);
-    } catch {
-      return fallback;
-    }
-  }
-  return field;
-}
-
 async function getEventDetails(id: string): Promise<EventDetails | null> {
   const apiKey = process.env.API_SECRET_KEY;
   const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
@@ -70,12 +78,15 @@ async function getEventDetails(id: string): Promise<EventDetails | null> {
   }
 
   try {
-    const response = await fetch(`${baseUrl}/api/get/details?event_id=${id}&api_key=${apiKey}`, {
-      cache: 'no-store',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
+    const response = await fetch(
+      `${baseUrl}/api/get/details?event_id=${id}&api_key=${apiKey}`,
+      {
+        cache: 'no-store',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      }
+    );
 
     if (!response.ok) {
       console.error(`Failed to fetch event details: ${response.status} ${response.statusText}`);
@@ -84,13 +95,9 @@ async function getEventDetails(id: string): Promise<EventDetails | null> {
 
     const result: EventDetailsResponse = await response.json();
     
-    if (!result.success) {
-      console.error('API returned success: false');
+    if (!result.success || !result.data) {
+      console.error('API returned success: false or no data');
       return null;
-    }
-
-    if (result.data && !Array.isArray(result.data.images)) {
-      result.data.images = [];
     }
 
     return result.data;
@@ -110,12 +117,15 @@ async function getEventUpdates(id: string): Promise<EventUpdate[]> {
   }
 
   try {
-    const response = await fetch(`${baseUrl}/api/get/updates?event_id=${id}&api_key=${apiKey}`, {
-      cache: 'no-store',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
+    const response = await fetch(
+      `${baseUrl}/api/get/updates?event_id=${id}&api_key=${apiKey}`,
+      {
+        cache: 'no-store',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      }
+    );
 
     if (!response.ok) {
       console.error(`Failed to fetch event updates: ${response.status} ${response.statusText}`);
@@ -123,7 +133,7 @@ async function getEventUpdates(id: string): Promise<EventUpdate[]> {
     }
 
     const result: EventUpdatesResponse = await response.json();
-    return result.success ? result.data : [];
+    return result.success && result.data ? result.data : [];
   } catch (error) {
     console.error('Error fetching event updates:', error);
     return [];
@@ -133,7 +143,7 @@ async function getEventUpdates(id: string): Promise<EventUpdate[]> {
 export default async function EventPage({ params }: { params: { id: string } }) {
   const { id } = await params;
   
-  if (!id || isNaN(Number(id))) {
+  if (!id) {
     console.error('Invalid event ID:', id);
     notFound();
   }
@@ -148,25 +158,16 @@ export default async function EventPage({ params }: { params: { id: string } }) 
     notFound();
   }
 
-  const parsedDetails = parseJsonField(eventDetails.details, { 
-    headline: 'No headline available', 
-    overview: 'No details available',
-    keyPoints: []
-  });
-
-  const parsedAccused = parseJsonField(eventDetails.accused, []);
-  const parsedVictims = parseJsonField(eventDetails.victims, []);
-  const parsedTimeline = parseJsonField(eventDetails.timeline, []);
-
   const safeEventDetails = {
     ...eventDetails,
     images: Array.isArray(eventDetails.images) ? eventDetails.images : [],
     sources: Array.isArray(eventDetails.sources) ? eventDetails.sources : [],
     location: eventDetails.location || 'Unknown Location',
-    details: parsedDetails,
-    accused: parsedAccused,
-    victims: parsedVictims,
-    timeline: parsedTimeline,
+    headline: eventDetails.headline || 'Event Details',
+    details: eventDetails.details || { overview: 'No details available', keyPoints: [] },
+    accused: eventDetails.accused || { individuals: [], organizations: [] },
+    victims: eventDetails.victims || { individuals: [], groups: [] },
+    timeline: Array.isArray(eventDetails.timeline) ? eventDetails.timeline : [],
   };
 
   const safeEventUpdates = Array.isArray(eventUpdates) ? eventUpdates : [];
@@ -203,7 +204,7 @@ export default async function EventPage({ params }: { params: { id: string } }) 
               className="text-2xl md:text-3xl font-bold leading-tight tracking-tight text-white text-justify" 
               style={{ fontFamily: 'Inter, system-ui, sans-serif' }}
             >
-              {safeEventDetails.details.headline || `Event at ${safeEventDetails.location}`}
+              {safeEventDetails.headline}
             </h1>
             <p className="text-base text-white text-justify font-mono">
               {safeEventDetails.location}

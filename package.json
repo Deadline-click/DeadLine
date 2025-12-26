@@ -6,29 +6,23 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "eslint"
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.50.4",
-    "cheerio": "^1.1.0",
-    "css-select": "^5.2.1",
-    "date-fns": "^4.1.0",
-    "googleapis": "^150.0.1",
-    "groq-sdk": "^0.26.0",
-    "next": "^15.5.9",
-    "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "@supabase/supabase-js": "^2.89.0",
+    "groq-sdk": "^0.37.0",
+    "next": "16.1.1",
+    "react": "19.2.3",
+    "react-dom": "19.2.3"
   },
   "devDependencies": {
-    "@eslint/eslintrc": "^3",
-    "@tailwindcss/postcss": "^4.1.18",
-    "@types/node": "^22",
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
-    "eslint-config-next": "15.3.6",
-    "postcss": "^8",
-    "tailwindcss": "^4.1.0",
+    "eslint-config-next": "16.1.1",
+    "tailwindcss": "^4",
     "typescript": "^5"
   }
 }
