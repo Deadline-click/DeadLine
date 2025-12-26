@@ -6,10 +6,24 @@ import SourcesComponent from '../../components/Sources';
 interface EventDetails {
   event_id: number;
   location: string;
-  details: string;
-  accused: string;
-  victims: string;
-  timeline: string;
+  details: {
+    headline: string;
+    overview: string;
+    keyPoints: string[];
+  } | string;
+  accused: Array<{
+    summary: string;
+    details: string[];
+  }> | string;
+  victims: Array<{
+    summary: string;
+    details: string[];
+  }> | string;
+  timeline: Array<{
+    date: string;
+    summary: string;
+    details: string[];
+  }> | string;
   sources: string[];
   images: string[];
   created_at: string;
@@ -33,6 +47,17 @@ interface EventUpdatesResponse {
   success: boolean;
   data: EventUpdate[];
   count: number;
+}
+
+function parseJsonField<T>(field: T | string, fallback: T): T {
+  if (typeof field === 'string') {
+    try {
+      return JSON.parse(field);
+    } catch {
+      return fallback;
+    }
+  }
+  return field;
 }
 
 async function getEventDetails(id: string): Promise<EventDetails | null> {
@@ -105,18 +130,6 @@ async function getEventUpdates(id: string): Promise<EventUpdate[]> {
   }
 }
 
-// Helper function to parse and highlight text between * *
-function parseHighlightedText(text: string) {
-  const parts = text.split(/(\*[^*]+\*)/g);
-  return parts.map((part, index) => {
-    if (part.startsWith('*') && part.endsWith('*')) {
-      const content = part.slice(1, -1);
-      return `<span class="bg-white text-black px-1">${content}</span>`;
-    }
-    return part;
-  }).join('');
-}
-
 export default async function EventPage({ params }: { params: { id: string } }) {
   const { id } = await params;
   
@@ -135,19 +148,31 @@ export default async function EventPage({ params }: { params: { id: string } }) 
     notFound();
   }
 
+  const parsedDetails = parseJsonField(eventDetails.details, { 
+    headline: 'No headline available', 
+    overview: 'No details available',
+    keyPoints: []
+  });
+
+  const parsedAccused = parseJsonField(eventDetails.accused, []);
+  const parsedVictims = parseJsonField(eventDetails.victims, []);
+  const parsedTimeline = parseJsonField(eventDetails.timeline, []);
+
   const safeEventDetails = {
     ...eventDetails,
     images: Array.isArray(eventDetails.images) ? eventDetails.images : [],
     sources: Array.isArray(eventDetails.sources) ? eventDetails.sources : [],
     location: eventDetails.location || 'Unknown Location',
-    details: eventDetails.details || 'No details available',
+    details: parsedDetails,
+    accused: parsedAccused,
+    victims: parsedVictims,
+    timeline: parsedTimeline,
   };
 
   const safeEventUpdates = Array.isArray(eventUpdates) ? eventUpdates : [];
 
   return (
     <div className="min-h-screen bg-gray-50 scroll-smooth" style={{ fontFamily: 'system-ui, -apple-system, sans-serif' }}>
-      {/* Header */}
       <header className="border-b border-black bg-white sticky top-0 z-50">
         <div className="max-w-full mx-auto px-6 py-3">
           <div className="flex items-center justify-between">
@@ -162,7 +187,6 @@ export default async function EventPage({ params }: { params: { id: string } }) 
         </div>
       </header>
 
-      {/* Hero Section */}
       <section className="bg-black text-white py-8 border-b-2 border-black">
         <div className="max-w-full mx-auto px-6">
           <div className="space-y-3">
@@ -178,8 +202,9 @@ export default async function EventPage({ params }: { params: { id: string } }) 
             <h1 
               className="text-2xl md:text-3xl font-bold leading-tight tracking-tight text-white text-justify" 
               style={{ fontFamily: 'Inter, system-ui, sans-serif' }}
-              dangerouslySetInnerHTML={{ __html: parseHighlightedText(safeEventDetails.details.split('.')[0] || `Event at ${safeEventDetails.location}`) }}
-            />
+            >
+              {safeEventDetails.details.headline || `Event at ${safeEventDetails.location}`}
+            </h1>
             <p className="text-base text-white text-justify font-mono">
               {safeEventDetails.location}
             </p>
@@ -187,7 +212,6 @@ export default async function EventPage({ params }: { params: { id: string } }) 
         </div>
       </section>
 
-      {/* Main Content */}
       <main className="max-w-full mx-auto px-6 py-8">
         <div className="max-w-none">
           <ImageSlider images={safeEventDetails.images} />
@@ -203,14 +227,13 @@ export default async function EventPage({ params }: { params: { id: string } }) 
         </div>
       </main>
 
-      {/* Footer */}
       <footer className="bg-black text-white py-6 border-t-2 border-black">
         <div className="max-w-full mx-auto px-6 text-center">
           <h2 className="text-lg font-black tracking-tight uppercase mb-2 text-white" style={{ fontFamily: 'Inter, system-ui, sans-serif' }}>
             DEADLINE
           </h2>
           <p className="text-white text-sm font-mono">
-            A Mueseum of temporary truths.
+            A Museum of temporary truths.
           </p>
         </div>
       </footer>

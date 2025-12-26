@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import Groq from 'groq-sdk';
 import config from '../../../api/config.json';
+import { buildAnalysisPrompt } from './prompt';
 
 const supabase = createClient(
   process.env.SUPABASE_URL!,
@@ -14,12 +15,32 @@ const groq = new Groq({
 
 const API_SECRET_KEY = process.env.API_SECRET_KEY;
 
+const MAX_TOKENS_BUDGET = 12000;
+const AVG_CHARS_PER_TOKEN = 4;
+const MAX_TOTAL_CHARS = MAX_TOKENS_BUDGET * AVG_CHARS_PER_TOKEN;
+const MAX_ARTICLES_PER_PERIOD = 8;
+const MAX_CHARS_PER_SITE = 3000;
+
 interface EventDetails {
   location: string;
-  details: string;
-  accused: string[];
-  victims: string[];
-  timeline: string[];
+  details: {
+    headline: string;
+    overview: string;
+    keyPoints: string[];
+  };
+  accused: Array<{
+    summary: string;
+    details: string[];
+  }>;
+  victims: Array<{
+    summary: string;
+    details: string[];
+  }>;
+  timeline: Array<{
+    date: string;
+    summary: string;
+    details: string[];
+  }>;
   sources: string[];
   images: string[];
 }
@@ -38,12 +59,20 @@ interface ScrapedArticle {
   publishDate?: string;
   author?: string;
   source: string;
+  relevanceScore: number;
+  timePeriod: string;
 }
 
 interface ScrapedData {
   results: GoogleSearchResult[];
   articles: ScrapedArticle[];
   images: string[];
+}
+
+interface DateRange {
+  start: string;
+  end: string;
+  label: string;
 }
 
 function isValidJSON(str: string): boolean {
@@ -60,94 +89,103 @@ function isHTMLResponse(response: string): boolean {
          response.trim().toLowerCase().startsWith('<html');
 }
 
-function extractArticleContent(html: string, url: string): ScrapedArticle {
+function calculateRelevanceScore(content: string, query: string): number {
+  const queryTerms = query.toLowerCase().split(/\s+/).filter(term => term.length > 3);
+  const contentLower = content.toLowerCase();
+  
+  let score = 0;
+  queryTerms.forEach(term => {
+    const occurrences = (contentLower.match(new RegExp(term, 'g')) || []).length;
+    score += occurrences;
+  });
+  
+  if (content.length > 1000) score += 2;
+  if (content.length > 2000) score += 3;
+  
+  return score;
+}
+
+function extractMainContent(html: string): string {
   let cleanHtml = html.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
   cleanHtml = cleanHtml.replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '');
   cleanHtml = cleanHtml.replace(/<nav\b[^<]*(?:(?!<\/nav>)<[^<]*)*<\/nav>/gi, '');
   cleanHtml = cleanHtml.replace(/<header\b[^<]*(?:(?!<\/header>)<[^<]*)*<\/header>/gi, '');
   cleanHtml = cleanHtml.replace(/<footer\b[^<]*(?:(?!<\/footer>)<[^<]*)*<\/footer>/gi, '');
+  cleanHtml = cleanHtml.replace(/<aside\b[^<]*(?:(?!<\/aside>)<[^<]*)*<\/aside>/gi, '');
+  cleanHtml = cleanHtml.replace(/<form\b[^<]*(?:(?!<\/form>)<[^<]*)*<\/form>/gi, '');
+  cleanHtml = cleanHtml.replace(/<!--[\s\S]*?-->/g, '');
   
-  const titleMatch = cleanHtml.match(/<title[^>]*>([^<]+)<\/title>/i);
-  const title = titleMatch ? titleMatch[1].trim() : '';
-  
-  const metaDescMatch = cleanHtml.match(/<meta[^>]*name=["']description["'][^>]*content=["']([^"']+)["'][^>]*>/i);
-  const metaContent = metaDescMatch ? metaDescMatch[1] : '';
-  
-  const articleMatches = cleanHtml.match(/<(?:article|main|div[^>]*class=["'][^"']*(?:content|article|post|story|news|entry|body)[^"']*["'])[^>]*>([\s\S]*?)<\/(?:article|main|div)>/gi);
-  let content = '';
+  const articleMatches = cleanHtml.match(/<(?:article|main)[^>]*>([\s\S]*?)<\/(?:article|main)>/gi);
   
   if (articleMatches && articleMatches.length > 0) {
     const longestMatch = articleMatches.reduce((a, b) => a.length > b.length ? a : b);
-    content = longestMatch
-      .replace(/<[^>]*>/g, ' ')
-      .replace(/\s+/g, ' ')
-      .replace(/&nbsp;/g, ' ')
-      .replace(/&amp;/g, '&')
-      .replace(/&lt;/g, '<')
-      .replace(/&gt;/g, '>')
-      .replace(/&quot;/g, '"')
-      .trim();
+    return extractTextFromHTML(longestMatch);
   }
   
-  if (!content || content.length < 300) {
-    const paragraphs = cleanHtml.match(/<p[^>]*>([^<]+(?:<[^p][^>]*>[^<]*<\/[^>]*>[^<]*)*)<\/p>/gi);
-    if (paragraphs && paragraphs.length > 0) {
-      content = paragraphs
-        .map(p => p.replace(/<[^>]*>/g, ' ').trim())
-        .filter(p => p.length > 50)
-        .join(' ')
-        .replace(/\s+/g, ' ')
-        .trim();
-    }
+  const contentDivs = cleanHtml.match(/<div[^>]*(?:class|id)=["'][^"']*(?:content|article|post|story|entry|body|text|main)[^"']*["'][^>]*>([\s\S]*?)<\/div>/gi);
+  
+  if (contentDivs && contentDivs.length > 0) {
+    const longestDiv = contentDivs.reduce((a, b) => a.length > b.length ? a : b);
+    return extractTextFromHTML(longestDiv);
   }
   
-  if (!content || content.length < 200) {
-    const divMatches = cleanHtml.match(/<div[^>]*class=["'][^"']*(?:text|content|article)[^"']*["'][^>]*>([^<]*(?:<[^\/][^>]*>[^<]*<\/[^>]*>[^<]*)*)<\/div>/gi);
-    if (divMatches) {
-      const textContent = divMatches
-        .map(div => div.replace(/<[^>]*>/g, ' ').trim())
-        .filter(t => t.length > 50)
-        .join(' ')
-        .replace(/\s+/g, ' ')
-        .trim();
-      if (textContent.length > content.length) {
-        content = textContent;
-      }
-    }
+  const paragraphs = cleanHtml.match(/<p[^>]*>(?:(?!<\/p>).)*<\/p>/gi);
+  if (paragraphs && paragraphs.length > 3) {
+    return paragraphs
+      .map(p => extractTextFromHTML(p))
+      .filter(text => text.length > 50)
+      .join(' ');
   }
   
-  if (!content || content.length < 100) {
-    content = metaContent;
-  }
+  return '';
+}
+
+function extractTextFromHTML(html: string): string {
+  return html
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#\d+;/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function extractArticleContent(html: string, url: string, query: string): ScrapedArticle {
+  const titleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i);
+  const title = titleMatch ? titleMatch[1].trim().replace(/\s*[-|]\s*.+$/, '') : '';
   
+  const content = extractMainContent(html);
   const source = new URL(url).hostname.replace('www.', '');
+  const relevanceScore = calculateRelevanceScore(content, query);
   
   return {
     url,
     title,
-    content: content.substring(0, 5000),
+    content,
     publishDate: '',
     author: '',
-    source
+    source,
+    relevanceScore,
+    timePeriod: ''
   };
 }
 
-async function scrapeArticle(url: string): Promise<ScrapedArticle | null> {
+async function scrapeArticle(url: string, query: string, timePeriod: string): Promise<ScrapedArticle | null> {
   try {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 15000);
+    const timeoutId = setTimeout(() => controller.abort(), 12000);
     
     const response = await fetch(url, {
       headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
         'Accept-Language': 'en-US,en;q=0.9',
         'Accept-Encoding': 'gzip, deflate, br',
-        'Cache-Control': 'no-cache',
-        'Pragma': 'no-cache',
-        'Sec-Fetch-Dest': 'document',
-        'Sec-Fetch-Mode': 'navigate',
-        'Sec-Fetch-Site': 'none',
+        'DNT': '1',
+        'Connection': 'keep-alive',
         'Upgrade-Insecure-Requests': '1',
       },
       signal: controller.signal,
@@ -157,23 +195,33 @@ async function scrapeArticle(url: string): Promise<ScrapedArticle | null> {
     clearTimeout(timeoutId);
     
     if (!response.ok) {
-      console.warn(`Failed to fetch ${url}: ${response.status} ${response.statusText}`);
+      if (response.status === 401 || response.status === 403) {
+        return null;
+      }
+      return null;
+    }
+    
+    const contentType = response.headers.get('content-type') || '';
+    if (!contentType.includes('text/html')) {
       return null;
     }
     
     const html = await response.text();
     
-    if (!html || html.length < 100) {
-      console.warn(`Insufficient content from ${url}`);
+    if (!html || html.length < 200) {
       return null;
     }
     
-    return extractArticleContent(html, url);
+    const article = extractArticleContent(html, url, query);
+    article.timePeriod = timePeriod;
+    
+    if (article.content.length < 100) {
+      return null;
+    }
+    
+    return article;
     
   } catch (error) {
-    if (error instanceof Error) {
-      console.warn(`Error scraping ${url}: ${error.message}`);
-    }
     return null;
   }
 }
@@ -183,17 +231,14 @@ async function searchImages(query: string): Promise<string[]> {
   const SEARCH_ENGINE_ID = process.env.GOOGLE_SEARCH_ENGINE_ID;
   
   if (!API_KEY || !SEARCH_ENGINE_ID) {
-    console.warn('Google API credentials not configured for image search');
     return [];
   }
 
   try {
-    console.log('Searching for images...');
-    
     const imageSearchUrl = `https://www.googleapis.com/customsearch/v1?key=${API_KEY}&cx=${SEARCH_ENGINE_ID}&q=${encodeURIComponent(query)}&searchType=image&num=10&safe=active&imgSize=medium`;
     
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10000);
+    const timeoutId = setTimeout(() => controller.abort(), 8000);
     
     const imageResponse = await fetch(imageSearchUrl, {
       signal: controller.signal,
@@ -205,26 +250,18 @@ async function searchImages(query: string): Promise<string[]> {
     clearTimeout(timeoutId);
 
     if (!imageResponse.ok) {
-      console.warn(`Image search failed with status: ${imageResponse.status}`);
       return [];
     }
 
     const imageResponseText = await imageResponse.text();
     
     if (!isValidJSON(imageResponseText) || isHTMLResponse(imageResponseText)) {
-      console.warn('Invalid JSON response from image search');
       return [];
     }
 
     const imageData = JSON.parse(imageResponseText);
     
-    if (imageData.error) {
-      console.warn('Image search API error:', imageData.error);
-      return [];
-    }
-
-    if (!imageData.items || !Array.isArray(imageData.items)) {
-      console.warn('No image items found in response');
+    if (imageData.error || !imageData.items || !Array.isArray(imageData.items)) {
       return [];
     }
 
@@ -239,18 +276,66 @@ async function searchImages(query: string): Promise<string[]> {
                (url.includes('.jpg') || url.includes('.jpeg') || url.includes('.png') || 
                 url.includes('.webp') || url.includes('.gif') || url.includes('image'));
       })
-      .slice(0, 10);
+      .slice(0, 8);
 
-    console.log(`Found ${imageLinks.length} valid image links`);
     return imageLinks;
 
   } catch (error) {
-    console.warn('Image search error:', error);
     return [];
   }
 }
 
-async function searchGoogleAndScrape(query: string): Promise<ScrapedData> {
+function generateDateRanges(): DateRange[] {
+  const now = new Date();
+  const ranges: DateRange[] = [];
+  
+  const threeMonthsAgo = new Date(now);
+  threeMonthsAgo.setMonth(now.getMonth() - 3);
+  
+  const sixMonthsAgo = new Date(now);
+  sixMonthsAgo.setMonth(now.getMonth() - 6);
+  
+  const oneYearAgo = new Date(now);
+  oneYearAgo.setFullYear(now.getFullYear() - 1);
+  
+  const twoYearsAgo = new Date(now);
+  twoYearsAgo.setFullYear(now.getFullYear() - 2);
+  
+  ranges.push({
+    start: formatDateForSearch(twoYearsAgo),
+    end: formatDateForSearch(oneYearAgo),
+    label: 'Oldest Period (2-1 years ago)'
+  });
+  
+  ranges.push({
+    start: formatDateForSearch(oneYearAgo),
+    end: formatDateForSearch(sixMonthsAgo),
+    label: 'Early Period (1 year - 6 months ago)'
+  });
+  
+  ranges.push({
+    start: formatDateForSearch(sixMonthsAgo),
+    end: formatDateForSearch(threeMonthsAgo),
+    label: 'Middle Period (6-3 months ago)'
+  });
+  
+  ranges.push({
+    start: formatDateForSearch(threeMonthsAgo),
+    end: formatDateForSearch(now),
+    label: 'Recent Period (Last 3 months)'
+  });
+  
+  return ranges;
+}
+
+function formatDateForSearch(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}${month}${day}`;
+}
+
+async function searchPeriod(query: string, dateRange: DateRange): Promise<GoogleSearchResult[]> {
   const API_KEY = process.env.GOOGLE_API_KEY;
   const SEARCH_ENGINE_ID = process.env.GOOGLE_SEARCH_ENGINE_ID;
   
@@ -259,194 +344,172 @@ async function searchGoogleAndScrape(query: string): Promise<ScrapedData> {
   }
 
   try {
-    const allResults: GoogleSearchResult[] = [];
+    const dateRestrict = `date:r:${dateRange.start}:${dateRange.end}`;
+    const webSearchUrl = `https://www.googleapis.com/customsearch/v1?key=${API_KEY}&cx=${SEARCH_ENGINE_ID}&q=${encodeURIComponent(query)}&num=10&sort=date:d:s&dateRestrict=${dateRestrict}`;
+    
+    const webResponse = await fetch(webSearchUrl, {
+      method: 'GET',
+      headers: {
+        'Accept': 'application/json',
+      },
+    });
 
-    for (let page = 1; page <= 3; page++) {
-      const startIndex = (page - 1) * 10 + 1;
-      
-      const webSearchUrl = `https://www.googleapis.com/customsearch/v1?key=${API_KEY}&cx=${SEARCH_ENGINE_ID}&q=${encodeURIComponent(query)}&num=10&start=${startIndex}`;
-      
-      console.log(`Making web search request for page ${page}...`);
-      
-      try {
-        const webResponse = await fetch(webSearchUrl, {
-          method: 'GET',
-          headers: {
-            'Accept': 'application/json',
-          },
-        });
-
-        if (!webResponse.ok) {
-          console.warn(`Web search page ${page} failed:`, webResponse.status);
-          continue;
-        }
-
-        const webResponseText = await webResponse.text();
-        
-        if (isHTMLResponse(webResponseText) || !isValidJSON(webResponseText)) {
-          console.warn(`Invalid response for page ${page}, skipping`);
-          continue;
-        }
-
-        const webData = JSON.parse(webResponseText);
-
-        if (webData.error) {
-          console.warn(`API error on page ${page}:`, webData.error);
-          continue;
-        }
-
-        const pageResults: GoogleSearchResult[] = webData.items?.map((item: any) => ({
-          title: item.title || 'No title',
-          link: item.link || '',
-          snippet: item.snippet || 'No snippet available',
-          displayLink: item.displayLink || '',
-        })) || [];
-
-        allResults.push(...pageResults);
-        console.log(`Page ${page}: Found ${pageResults.length} results`);
-
-        if (page < 3) {
-          await new Promise(resolve => setTimeout(resolve, 300));
-        }
-      } catch (error) {
-        console.warn(`Error on page ${page}:`, error);
-        continue;
-      }
+    if (!webResponse.ok) {
+      return [];
     }
 
-    console.log(`Total search results: ${allResults.length}`);
+    const webResponseText = await webResponse.text();
+    
+    if (isHTMLResponse(webResponseText) || !isValidJSON(webResponseText)) {
+      return [];
+    }
 
-    const filteredResults = allResults.filter((result, index, self) => {
-      const isDuplicate = index !== self.findIndex(r => r.link === result.link);
+    const webData = JSON.parse(webResponseText);
+
+    if (webData.error) {
+      return [];
+    }
+
+    const results: GoogleSearchResult[] = webData.items?.map((item: any) => ({
+      title: item.title || 'No title',
+      link: item.link || '',
+      snippet: item.snippet || 'No snippet available',
+      displayLink: item.displayLink || '',
+    })) || [];
+
+    return results;
+
+  } catch (error) {
+    return [];
+  }
+}
+
+async function searchGoogleChronologically(query: string): Promise<ScrapedData> {
+  const dateRanges = generateDateRanges();
+  const allResults: GoogleSearchResult[] = [];
+  const allArticles: ScrapedArticle[] = [];
+  
+  for (const dateRange of dateRanges) {
+    const periodResults = await searchPeriod(query, dateRange);
+    
+    const filteredResults = periodResults.filter((result, index, self) => {
+      const isDuplicate = allResults.some(r => r.link === result.link);
       if (isDuplicate) return false;
       
       const url = result.link.toLowerCase();
       const domain = result.displayLink?.toLowerCase() || '';
       
-      const blockDomains = ['tiktok.com', 'pinterest.com', 'facebook.com', 'twitter.com', 'instagram.com', 'youtube.com'];
+      const blockDomains = ['tiktok.com', 'pinterest.com', 'facebook.com', 'twitter.com', 'instagram.com', 'youtube.com', 'reddit.com'];
       const isBlocked = blockDomains.some(blocked => domain.includes(blocked) || url.includes(blocked));
       
-      return !isBlocked && result.title && result.snippet;
+      const isPaywall = domain.includes('nytimes.com') || domain.includes('wsj.com') || domain.includes('ft.com');
+      
+      return !isBlocked && !isPaywall && result.title && result.snippet;
     });
-
-    console.log(`Filtered to ${filteredResults.length} valid results`);
-
-    const redditResults = filteredResults.filter(r => 
-      r.displayLink?.toLowerCase().includes('reddit.com') || r.link.toLowerCase().includes('reddit.com')
-    ).slice(0, 2);
     
-    const nonRedditResults = filteredResults.filter(r => 
-      !r.displayLink?.toLowerCase().includes('reddit.com') && !r.link.toLowerCase().includes('reddit.com')
+    allResults.push(...filteredResults);
+    
+    const priorityResults = filteredResults.slice(0, MAX_ARTICLES_PER_PERIOD);
+    
+    const scrapedArticles = await Promise.allSettled(
+      priorityResults.map(result => scrapeArticle(result.link, query, dateRange.label))
     );
-
-    const articlesToScrape = [...nonRedditResults.slice(0, 16), ...redditResults].slice(0, 18);
-    
-    console.log(`Scraping content from ${articlesToScrape.length} articles (including max ${redditResults.length} Reddit)...`);
-    
-    const scrapePromises = articlesToScrape.map(result => scrapeArticle(result.link));
-    const scrapedArticles = await Promise.allSettled(scrapePromises);
     
     const successfulArticles: ScrapedArticle[] = scrapedArticles
       .filter((result): result is PromiseFulfilledResult<ScrapedArticle> => 
         result.status === 'fulfilled' && result.value !== null
       )
       .map(result => result.value)
-      .filter(article => article.content.length > 100);
+      .filter(article => article.content.length > 150);
 
-    console.log(`Successfully scraped ${successfulArticles.length} articles`);
-
-    const imageLinks = await searchImages(query);
-    console.log(`Found ${imageLinks.length} image URLs`);
-
-    return { 
-      results: filteredResults, 
-      articles: successfulArticles,
-      images: imageLinks
-    };
-
-  } catch (error) {
-    console.error('Google Search API error:', error);
-    throw new Error(`Failed to fetch data from Google Search API: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    allArticles.push(...successfulArticles);
+    
+    if (dateRange !== dateRanges[dateRanges.length - 1]) {
+      await new Promise(resolve => setTimeout(resolve, 500));
+    }
   }
+
+  allArticles.sort((a, b) => {
+    const periodOrder = ['Oldest Period (2-1 years ago)', 'Early Period (1 year - 6 months ago)', 'Middle Period (6-3 months ago)', 'Recent Period (Last 3 months)'];
+    const aPeriodIndex = periodOrder.indexOf(a.timePeriod);
+    const bPeriodIndex = periodOrder.indexOf(b.timePeriod);
+    
+    if (aPeriodIndex !== bPeriodIndex) {
+      return aPeriodIndex - bPeriodIndex;
+    }
+    
+    return b.relevanceScore - a.relevanceScore;
+  });
+
+  const imageLinks = await searchImages(query);
+
+  return { 
+    results: allResults, 
+    articles: allArticles,
+    images: imageLinks
+  };
+}
+
+function optimizeContentForContext(articles: ScrapedArticle[]): string {
+  const siteContentMap = new Map<string, string[]>();
+  let totalChars = 0;
+  const optimizedArticles: string[] = [];
+  
+  articles.forEach((article, index) => {
+    const site = article.source;
+    
+    if (!siteContentMap.has(site)) {
+      siteContentMap.set(site, []);
+    }
+    
+    const siteContents = siteContentMap.get(site)!;
+    const currentSiteChars = siteContents.reduce((sum, content) => sum + content.length, 0);
+    
+    if (currentSiteChars >= MAX_CHARS_PER_SITE) {
+      return;
+    }
+    
+    const availableSiteChars = MAX_CHARS_PER_SITE - currentSiteChars;
+    const availableTotalChars = MAX_TOTAL_CHARS - totalChars;
+    const maxCharsForArticle = Math.min(availableSiteChars, availableTotalChars, article.content.length);
+    
+    if (maxCharsForArticle < 100) {
+      return;
+    }
+    
+    const truncatedContent = article.content.substring(0, maxCharsForArticle);
+    const articleText = `[${index + 1}] ${article.source} - ${article.title} (${article.timePeriod})
+${truncatedContent}
+---`;
+    
+    if (totalChars + articleText.length > MAX_TOTAL_CHARS) {
+      return;
+    }
+    
+    optimizedArticles.push(articleText);
+    siteContents.push(articleText);
+    totalChars += articleText.length;
+  });
+  
+  return optimizedArticles.join('\n\n');
 }
 
 async function processArticlesWithGroq(scrapedData: ScrapedData, query: string): Promise<Omit<EventDetails, 'images' | 'sources'>> {
-  const topArticles = scrapedData.articles
-    .sort((a, b) => b.content.length - a.content.length)
-    .slice(0, 15);
-
-  const articleContent = topArticles.map((article, index) => {
-    const contentToUse = article.content.substring(0, 4000);
-    return `
-=== SOURCE ${index + 1}: ${article.source.toUpperCase()} ===
-Title: ${article.title}
-URL: ${article.url}
-Content: ${contentToUse}
----`;
-  }).join('\n\n');
+  const articleContent = optimizeContentForContext(scrapedData.articles);
 
   const topSnippets = scrapedData.results
-    .slice(0, 15)
+    .slice(0, 20)
     .map((result, index) => `${index + 1}. [${result.displayLink}] ${result.title}: ${result.snippet}`)
     .join('\n');
 
-  const prompt = `You are a factual data extraction system. Extract comprehensive information about: "${query}"
-
-SOURCES:
-${articleContent}
-
-SNIPPETS:
-${topSnippets}
-
-CRITICAL: You must respond with ONLY valid JSON. No preamble, no explanation, no markdown formatting, no backticks. Start with { and end with }.
-
-EXTRACTION RULES:
-- Extract ONLY verifiable facts from sources
-- Include all specifics: names, ages, numbers, dates, charges, statute codes, amounts, locations
-- Each person = separate array entry (accused and victims)
-- Use **highlights** on 2-3 word phrases ONLY for the most critical facts (charges, verdicts, death counts, bail amounts)
-- Keep highlights sparse: 2-3 in details section, at least 1 in accused/victims/timeline entries
-- Write complete, detailed sentences with maximum factual density
-- Escape all quotes inside strings using backslash
-
-JSON STRUCTURE (respond with this exact format):
-{
-  "location": "string",
-  "details": "string",
-  "accused": ["string per person"],
-  "victims": ["string per person"],
-  "timeline": ["string per event"]
-}
-
-FIELD SPECIFICATIONS:
-
-location: City, State/Province, Country. For lesser-known: (X km from Major City)
-
-details: One compelling headline sentence. Then comprehensive coverage in 800-1200 words covering background context, the incident chronologically with exact times and locations, all parties involved with full details, investigation specifics including evidence and testimonies, legal proceedings with exact charges and statute numbers, official statements from authorities, witness accounts, media coverage and public reaction, current status of all proceedings, and outcomes. Use **2-3 word highlights** sparingly on critical facts only.
-
-accused: Array with separate entry per person. Each entry 150-250 words: Full legal name with aliases, exact age/DOB, occupation/title, employer, business affiliations, residential address, education, specific criminal role and involvement level, relationship to victims/co-accused, complete charges with statute numbers, additional charges, plea entered, bail amount and reasoning, bail status, legal representation with attorney names, custody location and facility, custody conditions, prior record, co-conspirators, trial date, aggravating factors, mitigating circumstances, statements made. Use **highlights** sparingly on critical facts.
-
-victims: Array with separate entry per person. Each entry 150-250 words: Full legal name if released, exact age/DOB, gender, occupation/title, employer, residential location, education, family details with names and ages, relationship to accused, location during incident, complete injury description with medical terminology or cause of death, immediate medical response, emergency services, hospital names, specific surgeries/procedures with dates, ICU status, current condition and prognosis, recovery timeline, permanent disabilities, psychological trauma, impact on dependents, financial impact, victim advocacy involvement, impact statements. Use **highlights** sparingly on critical facts.
-
-timeline: Array with separate entry per date. Each entry format "Month Day, Year: 6-10 detailed sentences" covering what happened, individuals involved and roles, precise locations with addresses, specific actions step-by-step, evidence discovered with details, official responses, witness observations, legal filings with case numbers, media reports, community reactions, specific times if available. Use **2-3 word highlights** sparingly on critical facts only.
-
-REQUIREMENTS:
-- Details: 800-1200 words minimum
-- Accused entries: 150-250 words each
-- Victim entries: 150-250 words each
-- Timeline entries: 6-10 sentences each
-- Highlights: 2-3 words max, used sparingly
-- No speculation—only verified facts
-- Escape all quotes in strings
-
-RESPOND WITH ONLY THE JSON OBJECT. NO OTHER TEXT.`;
+  const prompt = buildAnalysisPrompt(query, articleContent, topSnippets);
 
   try {
     const completion = await groq.chat.completions.create({
       messages: [
         {
           role: "system",
-          content: "You are a precise data extraction system. You MUST respond with ONLY valid JSON. No markdown, no backticks, no preamble, no explanation. Start your response with { and end with }. Ensure all strings are properly escaped."
+          content: "You are a precise factual data extraction system. Output ONLY valid JSON. No markdown, no backticks, no preamble. Start with { and end with }. Properly escape all quotes in strings. Analyze all provided sources thoroughly and extract every relevant detail without repetition. Pay special attention to chronological development and evolution of events over time."
         },
         {
           role: "user",
@@ -477,8 +540,7 @@ RESPOND WITH ONLY THE JSON OBJECT. NO OTHER TEXT.`;
     const jsonEnd = cleanedResponse.lastIndexOf('}') + 1;
     
     if (jsonStart === -1 || jsonEnd === 0) {
-      console.error('No JSON object found in response. First 500 chars:', cleanedResponse.substring(0, 500));
-      throw new Error('Invalid JSON response from Groq - no JSON object found');
+      throw new Error('Invalid response from Groq - no JSON object found');
     }
     
     const jsonString = cleanedResponse.substring(jsonStart, jsonEnd);
@@ -487,30 +549,37 @@ RESPOND WITH ONLY THE JSON OBJECT. NO OTHER TEXT.`;
     try {
       parsedData = JSON.parse(jsonString);
     } catch (parseError) {
-      console.error('JSON parse error:', parseError);
-      console.error('First 1000 chars of JSON string:', jsonString.substring(0, 1000));
-      console.error('Last 500 chars of JSON string:', jsonString.substring(Math.max(0, jsonString.length - 500)));
-      throw new Error(`Invalid JSON format from Groq response: ${parseError instanceof Error ? parseError.message : 'Unknown parse error'}`);
+      throw new Error(`Invalid JSON format: ${parseError instanceof Error ? parseError.message : 'Parse error'}`);
     }
     
-    const requiredFields: (keyof Omit<EventDetails, 'images' | 'sources'>)[] = ['location', 'details', 'accused', 'victims', 'timeline'];
-    for (const field of requiredFields) {
-      if (!(field in parsedData)) {
-        parsedData[field] = Array.isArray(['accused', 'victims', 'timeline'].includes(field)) ? [] : '';
-      }
+    if (!parsedData.details || typeof parsedData.details !== 'object') {
+      parsedData.details = {
+        headline: parsedData.details || '',
+        overview: '',
+        keyPoints: []
+      };
     }
     
-    console.log('Groq analysis complete:');
-    console.log(`- Details length: ${parsedData.details?.length || 0} characters`);
-    console.log(`- Accused entries: ${parsedData.accused?.length || 0}`);
-    console.log(`- Victim entries: ${parsedData.victims?.length || 0}`);
-    console.log(`- Timeline entries: ${parsedData.timeline?.length || 0}`);
+    if (!parsedData.accused || !Array.isArray(parsedData.accused)) {
+      parsedData.accused = [];
+    }
+    
+    if (!parsedData.victims || !Array.isArray(parsedData.victims)) {
+      parsedData.victims = [];
+    }
+    
+    if (!parsedData.timeline || !Array.isArray(parsedData.timeline)) {
+      parsedData.timeline = [];
+    }
+    
+    if (!parsedData.location) {
+      parsedData.location = '';
+    }
     
     return parsedData;
     
   } catch (error) {
-    console.error('Groq processing error:', error);
-    throw new Error(`Failed to process data with Groq API: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    throw new Error(`Failed to process with Groq API: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 }
 
@@ -522,7 +591,6 @@ async function fetchEventFromDatabase(event_id: string) {
     .single();
     
   if (fetchError) {
-    console.error('Event fetch error:', fetchError);
     throw new Error(`Event not found: ${fetchError.message}`);
   }
   
@@ -534,10 +602,6 @@ async function fetchEventFromDatabase(event_id: string) {
 }
 
 async function saveEventDetails(event_id: string, structuredData: EventDetails) {
-  console.log(`Saving event details for ${event_id}:`);
-  console.log(`- Sources: ${structuredData.sources.length}`);
-  console.log(`- Images: ${structuredData.images.length}`);
-
   const { data: existingDetails, error: checkError } = await supabase
     .from('event_details')
     .select('event_id')
@@ -548,7 +612,6 @@ async function saveEventDetails(event_id: string, structuredData: EventDetails) 
   
   let dbOperation;
   if (existingDetails && !checkError) {
-    console.log('Updating existing record...');
     dbOperation = supabase
       .from('event_details')
       .update({
@@ -563,7 +626,6 @@ async function saveEventDetails(event_id: string, structuredData: EventDetails) 
       })
       .eq('event_id', event_id);
   } else {
-    console.log('Inserting new record...');
     dbOperation = supabase
       .from('event_details')
       .insert({
@@ -582,11 +644,8 @@ async function saveEventDetails(event_id: string, structuredData: EventDetails) 
 
   const { error: saveError } = await dbOperation;
   if (saveError) {
-    console.error('Database save error:', saveError);
     throw new Error(`Failed to save event details: ${saveError.message}`);
   }
-  
-  console.log('Successfully saved event details');
 }
 
 async function updateEventTimestamp(event_id: string) {
@@ -601,26 +660,18 @@ async function updateEventTimestamp(event_id: string) {
 }
 
 async function processEvent(event_id: string) {
-  console.log(`Processing event for detailed analysis: ${event_id}`);
-
   const eventData = await fetchEventFromDatabase(event_id);
-  console.log(`Event: ${eventData.title}`);
-  console.log(`Query: ${eventData.query}`);
 
-  console.log('Conducting comprehensive search and scraping...');
-  const scrapedData = await searchGoogleAndScrape(eventData.query);
+  const scrapedData = await searchGoogleChronologically(eventData.query);
 
   if (!scrapedData.articles || scrapedData.articles.length === 0) {
     throw new Error('No articles found or scraped');
   }
 
-  console.log(`Scraped ${scrapedData.articles.length} articles and found ${scrapedData.images.length} images for detailed analysis`);
-
-  console.log('Processing with Groq for comprehensive detailed analysis...');
   const analyzedData = await processArticlesWithGroq(scrapedData, eventData.query);
 
   const scrapedSourceUrls = scrapedData.articles
-    .filter(article => article.url && article.content.length > 100)
+    .filter(article => article.url && article.content.length > 150)
     .map(article => article.url);
 
   const structuredData: EventDetails = {
@@ -629,21 +680,19 @@ async function processEvent(event_id: string) {
     images: scrapedData.images
   };
 
-  console.log(`Detailed analysis complete: ${scrapedSourceUrls.length} sources analyzed, ${scrapedData.images.length} images found`);
-  console.log(`Details length: ${structuredData.details.length} characters`);
-  console.log(`Timeline events: ${structuredData.timeline.length}`);
-  console.log(`Accused parties: ${structuredData.accused.length}`);
-  console.log(`Victims: ${structuredData.victims.length}`);
-
   await saveEventDetails(event_id, structuredData);
   await updateEventTimestamp(event_id);
 
-  console.log('Successfully completed detailed processing');
+  const periodBreakdown = scrapedData.articles.reduce((acc, article) => {
+    acc[article.timePeriod] = (acc[article.timePeriod] || 0) + 1;
+    return acc;
+  }, {} as Record<string, number>);
 
   return {
     eventData,
     structuredData,
-    scrapedData
+    scrapedData,
+    periodBreakdown
   };
 }
 
@@ -667,32 +716,33 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const { eventData, structuredData, scrapedData } = await processEvent(event_id);
+    const { eventData, structuredData, scrapedData, periodBreakdown } = await processEvent(event_id);
 
     return NextResponse.json({
       success: true,
-      message: "Event analyzed and saved successfully with detailed information",
+      message: "Event analyzed chronologically and saved successfully",
       event_id: event_id,
       event_title: eventData.title,
       query_used: eventData.query,
       articles_scraped: structuredData.sources.length,
       images_found: structuredData.images.length,
       sources_analyzed: [...new Set(scrapedData.articles.map(a => a.source))].join(', '),
+      chronological_breakdown: periodBreakdown,
       analysis_summary: {
         location: structuredData.location,
+        headline: structuredData.details.headline,
         accused_count: structuredData.accused.length,
         victims_count: structuredData.victims.length,
         timeline_events: structuredData.timeline.length,
-        details_length: structuredData.details.length,
+        key_points_count: structuredData.details.keyPoints?.length || 0,
         total_content_analyzed: scrapedData.articles.reduce((sum, article) => sum + article.content.length, 0)
       }
     });
 
   } catch (error) {
-    console.error('API route error:', error);
     return NextResponse.json(
       { 
-        error: 'Internal server error during detailed event analysis',
+        error: 'Internal server error',
         details: error instanceof Error ? error.message : 'Unknown error'
       },
       { status: 500 }
@@ -711,26 +761,33 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { eventData, structuredData, scrapedData } = await processEvent(event_id);
+    const { eventData, structuredData, scrapedData, periodBreakdown } = await processEvent(event_id);
 
     return NextResponse.json({
       success: true,
+      message: "Event analyzed chronologically and saved successfully",
       event_id: event_id,
       event_title: eventData.title,
       query_used: eventData.query,
-      data: structuredData,
       articles_scraped: structuredData.sources.length,
       images_found: structuredData.images.length,
       sources_analyzed: [...new Set(scrapedData.articles.map(a => a.source))].join(', '),
-      details_length: structuredData.details.length,
-      comprehensive_analysis: true
+      chronological_breakdown: periodBreakdown,
+      analysis_summary: {
+        location: structuredData.location,
+        headline: structuredData.details.headline,
+        accused_count: structuredData.accused.length,
+        victims_count: structuredData.victims.length,
+        timeline_events: structuredData.timeline.length,
+        key_points_count: structuredData.details.keyPoints?.length || 0,
+        total_content_analyzed: scrapedData.articles.reduce((sum, article) => sum + article.content.length, 0)
+      }
     });
 
   } catch (error) {
-    console.error('API route error:', error);
     return NextResponse.json(
       { 
-        error: 'Internal server error during detailed event analysis',
+        error: 'Internal server error',
         details: error instanceof Error ? error.message : 'Unknown error'
       },
       { status: 500 }
