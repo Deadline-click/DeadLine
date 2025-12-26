@@ -18,18 +18,18 @@ export async function GET(request: NextRequest) {
     const revalidated: string[] = [];
 
     if (revalidate_all === 'true') {
-      revalidateTag('events-list');
+      revalidateTag('events-list', 'page');
       revalidatePath('/');
       revalidated.push('events-list', 'homepage');
     }
 
     if (event_id) {
-      revalidateTag(`event-${event_id}`);
-      revalidateTag(`event-updates-${event_id}`);
+      revalidateTag(`event-${event_id}`, 'page');
+      revalidateTag(`event-updates-${event_id}`, 'page');
       revalidatePath(`/event/${event_id}`);
       revalidated.push(`event-${event_id}`, `event-updates-${event_id}`);
       
-      revalidateTag('events-list');
+      revalidateTag('events-list', 'page');
       revalidatePath('/');
       revalidated.push('events-list', 'homepage');
     }
