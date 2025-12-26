@@ -1,7 +1,7 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { EventsClient } from './events-client';
-import { sql } from '@vercel/postgres';
+import { createClient } from '@supabase/supabase-js';
 
 interface Event {
   event_id: number;
@@ -15,29 +15,25 @@ interface Event {
   incident_date: string | null;
 }
 
-interface EventsResponse {
-  events: Event[];
-}
-
 async function getEvents(): Promise<Event[]> {
   try {
-    // Fetch directly from database during build
-    const { rows } = await sql`
-      SELECT 
-        event_id,
-        title,
-        image_url,
-        status,
-        tags,
-        query,
-        summary,
-        last_updated,
-        incident_date
-      FROM events
-      ORDER BY incident_date DESC NULLS LAST, last_updated DESC
-    `;
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    );
     
-    return rows as Event[];
+    const { data, error } = await supabase
+      .from('events')
+      .select('*')
+      .order('incident_date', { ascending: false, nullsFirst: false })
+      .order('last_updated', { ascending: false });
+    
+    if (error) {
+      console.error('Error fetching events:', error);
+      return [];
+    }
+    
+    return (data as Event[]) || [];
   } catch (error) {
     console.error('Error fetching events:', error);
     return [];
