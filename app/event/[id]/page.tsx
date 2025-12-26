@@ -82,10 +82,7 @@ async function getEventDetails(id: string): Promise<EventDetails | null> {
     const response = await fetch(
       `${baseUrl}/api/get/details?event_id=${id}&api_key=${apiKey}`,
       {
-        next: { 
-          revalidate: false,
-          tags: [`event-${id}`]
-        },
+        cache: 'no-store',
         headers: {
           'Content-Type': 'application/json',
         },
@@ -124,10 +121,7 @@ async function getEventUpdates(id: string): Promise<EventUpdate[]> {
     const response = await fetch(
       `${baseUrl}/api/get/updates?event_id=${id}&api_key=${apiKey}`,
       {
-        next: { 
-          revalidate: false,
-          tags: [`event-updates-${id}`]
-        },
+        cache: 'no-store',
         headers: {
           'Content-Type': 'application/json',
         },
@@ -147,13 +141,12 @@ async function getEventUpdates(id: string): Promise<EventUpdate[]> {
   }
 }
 
-export const dynamic = 'force-static';
-export const revalidate = false;
+export const dynamic = 'force-dynamic';
 
 export default async function EventPage({ 
   params 
 }: { 
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
   
