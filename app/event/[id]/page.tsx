@@ -142,13 +142,14 @@ async function getEventUpdates(id: string): Promise<EventUpdate[]> {
 }
 
 export const dynamic = 'force-dynamic';
+export const dynamicParams = true;
 
 export default async function EventPage({ 
   params 
 }: { 
-  params: Promise<{ id: string }>;
+  params: { id: string };
 }) {
-  const { id } = await params;
+  const id = params.id;
   
   if (!id) {
     console.error('Invalid event ID:', id);
