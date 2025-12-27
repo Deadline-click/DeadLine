@@ -1,17 +1,16 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-
-interface SourcesProps {
-  sources: string[];
-}
+import { useState } from 'react';
 
 interface SourceData {
   url: string;
   title: string;
   domain: string;
   favicon: string;
-  loading: boolean;
+}
+
+interface SourcesProps {
+  sources: SourceData[];
 }
 
 function SourceCard({ sourceData }: { sourceData: SourceData }) {
@@ -45,122 +44,15 @@ function SourceCard({ sourceData }: { sourceData: SourceData }) {
             <div className="w-4 h-4 bg-gray-300 rounded"></div>
           )}
         </div>
-        {sourceData.loading ? (
-          <div className="w-full space-y-2">
-            <div className="h-3 bg-gray-200 animate-pulse rounded"></div>
-            <div className="h-3 bg-gray-200 animate-pulse rounded w-3/4 mx-auto"></div>
-          </div>
-        ) : (
-          <p className="text-black text-xs sm:text-sm text-center font-mono leading-tight px-1 line-clamp-2">
-            {sourceData.title}
-          </p>
-        )}
+        <p className="text-black text-xs sm:text-sm text-center font-mono leading-tight px-1 line-clamp-2">
+          {sourceData.title}
+        </p>
       </div>
     </a>
   );
 }
 
 export default function SourcesComponent({ sources }: SourcesProps) {
-  const [sourcesData, setSourcesData] = useState<SourceData[]>([]);
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  useEffect(() => {
-    if (!mounted || !sources || sources.length === 0) {
-      return;
-    }
-
-    const validSources = sources.filter(source => {
-      if (!source || typeof source !== 'string' || source.trim() === '') return false;
-      try {
-        const testUrl = new URL(source.trim());
-        return testUrl.protocol === 'http:' || testUrl.protocol === 'https:';
-      } catch {
-        return false;
-      }
-    });
-
-    const initialData: SourceData[] = validSources.map(url => {
-      try {
-        const trimmedUrl = url.trim();
-        const urlObj = new URL(trimmedUrl);
-        const domain = urlObj.hostname.replace('www.', '');
-        
-        return {
-          url: trimmedUrl,
-          domain,
-          title: 'Loading...',
-          favicon: `https://www.google.com/s2/favicons?domain=${domain}&sz=64`,
-          loading: true
-        };
-      } catch (e) {
-        return null;
-      }
-    }).filter((data): data is SourceData => data !== null);
-
-    setSourcesData(initialData);
-
-    const fetchTitles = async () => {
-      const batchSize = 5;
-      const batches: SourceData[][] = [];
-      
-      for (let i = 0; i < initialData.length; i += batchSize) {
-        batches.push(initialData.slice(i, i + batchSize));
-      }
-
-      for (const batch of batches) {
-        const batchResults = await Promise.all(
-          batch.map(async (source) => {
-            try {
-              const response = await fetch(`/api/get/title?url=${encodeURIComponent(source.url)}`, {
-                cache: 'force-cache'
-              });
-              
-              if (response.ok) {
-                const data = await response.json();
-                return {
-                  ...source,
-                  title: data.title || 'Article',
-                  loading: false
-                };
-              }
-            } catch (error) {
-              console.error('Error fetching title for', source.url);
-            }
-            
-            return {
-              ...source,
-              title: 'Article',
-              loading: false
-            };
-          })
-        );
-
-        setSourcesData(prev => {
-          const newData = [...prev];
-          batchResults.forEach(result => {
-            const index = newData.findIndex(item => item.url === result.url);
-            if (index !== -1) {
-              newData[index] = result;
-            }
-          });
-          return newData;
-        });
-
-        await new Promise(resolve => setTimeout(resolve, 100));
-      }
-    };
-
-    fetchTitles();
-  }, [mounted, sources]);
-
-  if (!mounted) {
-    return null;
-  }
-
   if (!sources || sources.length === 0) {
     return (
       <section className="mb-6">
@@ -174,36 +66,13 @@ export default function SourcesComponent({ sources }: SourcesProps) {
     );
   }
 
-  if (sourcesData.length === 0 && mounted) {
-    return (
-      <section className="mb-6">
-        <h3 className="text-base font-bold mb-3 sm:mb-4 text-black border-b-2 border-black pb-2 font-mono uppercase">
-          SOURCES
-        </h3>
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-3">
-          {Array.from({ length: Math.min(sources?.length || 0, 12) }).map((_, index) => (
-            <div key={index} className="bg-white border border-black p-3 sm:p-4">
-              <div className="flex flex-col items-center space-y-2">
-                <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full border-2 border-black overflow-hidden bg-gray-200 animate-pulse"></div>
-                <div className="w-full space-y-2">
-                  <div className="h-3 bg-gray-200 animate-pulse rounded"></div>
-                  <div className="h-3 bg-gray-200 animate-pulse rounded w-3/4 mx-auto"></div>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      </section>
-    );
-  }
-
   return (
     <section className="mb-6">
       <h3 className="text-base font-bold mb-3 sm:mb-4 text-black border-b-2 border-black pb-2 font-mono uppercase">
-        SOURCES ({sourcesData.length})
+        SOURCES ({sources.length})
       </h3>
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-3">
-        {sourcesData.map((sourceData, index) => (
+        {sources.map((sourceData, index) => (
           <SourceCard 
             key={`${sourceData.url}-${index}`}
             sourceData={sourceData}

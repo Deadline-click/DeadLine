@@ -70,6 +70,13 @@ interface EventUpdatesResponse {
   count: number;
 }
 
+interface SourceWithTitle {
+  url: string;
+  title: string;
+  domain: string;
+  favicon: string;
+}
+
 async function getEventDetails(id: string): Promise<EventDetails | null> {
   try {
     const apiKey = process.env.API_SECRET_KEY;
@@ -151,6 +158,63 @@ async function getEventUpdates(id: string): Promise<EventUpdate[]> {
     console.error('[getEventUpdates] Exception:', error);
     return [];
   }
+}
+
+async function getSourceTitles(sources: string[], eventId: string): Promise<SourceWithTitle[]> {
+  const validSources = sources.filter(source => {
+    if (!source || typeof source !== 'string' || source.trim() === '') return false;
+    try {
+      const testUrl = new URL(source.trim());
+      return testUrl.protocol === 'http:' || testUrl.protocol === 'https:';
+    } catch {
+      return false;
+    }
+  });
+
+  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL;
+  if (!baseUrl) return [];
+
+  const sourcesWithTitles = await Promise.all(
+    validSources.map(async (url) => {
+      try {
+        const trimmedUrl = url.trim();
+        const urlObj = new URL(trimmedUrl);
+        const domain = urlObj.hostname.replace('www.', '');
+        
+        const response = await fetch(
+          `${baseUrl}/api/get/title?url=${encodeURIComponent(trimmedUrl)}`,
+          {
+            next: {
+              tags: [`event-${eventId}`, `source-${domain}`],
+              revalidate: false
+            },
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            cache: 'force-cache'
+          }
+        );
+
+        let title = 'Article';
+        if (response.ok) {
+          const data = await response.json();
+          title = data.title || 'Article';
+        }
+
+        return {
+          url: trimmedUrl,
+          title,
+          domain,
+          favicon: `https://www.google.com/s2/favicons?domain=${domain}&sz=64`
+        };
+      } catch (error) {
+        console.error('Error processing source:', url, error);
+        return null;
+      }
+    })
+  );
+
+  return sourcesWithTitles.filter((s): s is SourceWithTitle => s !== null);
 }
 
 function stripMarkdown(text: string): string {
@@ -287,6 +351,7 @@ export default async function EventPage({
     updated_at: eventDetails.updated_at,
   };
 
+  const sourcesWithTitles = await getSourceTitles(safeEventDetails.sources, id);
   const safeEventUpdates = Array.isArray(eventUpdates) ? eventUpdates : [];
 
   const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://deadline.com';
@@ -399,7 +464,7 @@ export default async function EventPage({
               />
             </div>
             <div id="sources">
-              <SourcesComponent sources={safeEventDetails.sources} />
+              <SourcesComponent sources={sourcesWithTitles} />
             </div>
           </div>
         </main>
