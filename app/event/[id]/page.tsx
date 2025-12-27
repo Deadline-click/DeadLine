@@ -90,7 +90,7 @@ async function getEventDetails(id: string): Promise<EventDetails | null> {
     const response = await fetch(url, {
       next: { 
         revalidate: false,
-        tags: [`event-${id}`]
+        tags: [`event-${id}`, `event-details-${id}`]
       },
       headers: {
         'Content-Type': 'application/json',
@@ -129,7 +129,7 @@ async function getEventUpdates(id: string): Promise<EventUpdate[]> {
       {
         next: { 
           revalidate: false,
-          tags: [`event-updates-${id}`]
+          tags: [`event-${id}`, `event-updates-${id}`]
         },
         headers: {
           'Content-Type': 'application/json',

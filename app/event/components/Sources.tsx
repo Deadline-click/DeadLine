@@ -11,6 +11,7 @@ interface SourceData {
   title: string;
   domain: string;
   favicon: string;
+  loading: boolean;
 }
 
 function SourceCard({ sourceData }: { sourceData: SourceData }) {
@@ -45,9 +46,16 @@ function SourceCard({ sourceData }: { sourceData: SourceData }) {
             <div className="w-4 h-4 bg-gray-300 rounded"></div>
           )}
         </div>
-        <p className="text-black text-xs sm:text-sm text-center font-mono leading-tight px-1 line-clamp-2">
-          {sourceData.title}
-        </p>
+        {sourceData.loading ? (
+          <div className="w-full space-y-2">
+            <div className="h-3 bg-gray-200 animate-pulse rounded"></div>
+            <div className="h-3 bg-gray-200 animate-pulse rounded w-3/4 mx-auto"></div>
+          </div>
+        ) : (
+          <p className="text-black text-xs sm:text-sm text-center font-mono leading-tight px-1 line-clamp-2">
+            {sourceData.title}
+          </p>
+        )}
       </div>
     </a>
   );
@@ -55,12 +63,9 @@ function SourceCard({ sourceData }: { sourceData: SourceData }) {
 
 export default function SourcesComponent({ sources }: SourcesProps) {
   const [isClient, setIsClient] = useState(false);
+  const [sourcesData, setSourcesData] = useState<SourceData[]>([]);
 
-  useEffect(() => {
-    setIsClient(true);
-  }, []);
-
-  const sourceDataList = useMemo(() => {
+  const initialSourceData = useMemo(() => {
     if (!sources || sources.length === 0) return [];
     
     return sources
@@ -80,8 +85,9 @@ export default function SourcesComponent({ sources }: SourcesProps) {
           return {
             url,
             domain,
-            title: domain.charAt(0).toUpperCase() + domain.slice(1).split('.')[0],
-            favicon: `https://www.google.com/s2/favicons?domain=${domain}&sz=64`
+            title: 'Loading...',
+            favicon: `https://www.google.com/s2/favicons?domain=${domain}&sz=64`,
+            loading: true
           };
         } catch {
           return null;
@@ -90,7 +96,44 @@ export default function SourcesComponent({ sources }: SourcesProps) {
       .filter((data): data is SourceData => data !== null);
   }, [sources]);
 
-  if (!isClient || sourceDataList.length === 0) {
+  useEffect(() => {
+    setIsClient(true);
+    setSourcesData(initialSourceData);
+  }, [initialSourceData]);
+
+  useEffect(() => {
+    if (!isClient || initialSourceData.length === 0) return;
+
+    const fetchTitles = async () => {
+      const updatedData = await Promise.all(
+        initialSourceData.map(async (source) => {
+          try {
+            const response = await fetch(`/api/get/title?url=${encodeURIComponent(source.url)}`);
+            if (response.ok) {
+              const data = await response.json();
+              return {
+                ...source,
+                title: data.title || source.domain.charAt(0).toUpperCase() + source.domain.slice(1).split('.')[0],
+                loading: false
+              };
+            }
+          } catch (error) {
+            console.error('Error fetching title:', error);
+          }
+          return {
+            ...source,
+            title: source.domain.charAt(0).toUpperCase() + source.domain.slice(1).split('.')[0],
+            loading: false
+          };
+        })
+      );
+      setSourcesData(updatedData);
+    };
+
+    fetchTitles();
+  }, [isClient, initialSourceData]);
+
+  if (!isClient || sourcesData.length === 0) {
     return null;
   }
 
@@ -100,7 +143,7 @@ export default function SourcesComponent({ sources }: SourcesProps) {
         SOURCES
       </h3>
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-3">
-        {sourceDataList.map((sourceData, index) => (
+        {sourcesData.map((sourceData, index) => (
           <SourceCard 
             key={`${sourceData.url}-${index}`} 
             sourceData={sourceData}
