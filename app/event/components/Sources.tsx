@@ -123,7 +123,7 @@ export default function SourcesComponent({ sources }: SourcesProps) {
                 const data = await response.json();
                 return {
                   ...source,
-                  title: data.title || source.domain.charAt(0).toUpperCase() + source.domain.slice(1).split('.')[0],
+                  title: data.title || 'Article',
                   loading: false
                 };
               }
@@ -133,7 +133,7 @@ export default function SourcesComponent({ sources }: SourcesProps) {
             
             return {
               ...source,
-              title: source.domain.charAt(0).toUpperCase() + source.domain.slice(1).split('.')[0],
+              title: 'Article',
               loading: false
             };
           })

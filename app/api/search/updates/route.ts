@@ -169,6 +169,33 @@ function selectLinksToScan(results: GoogleSearchResult[], maxPerDate: number = 3
   return selected;
 }
 
+async function revalidateEventCache(event_id: string, apiKey: string): Promise<void> {
+  try {
+    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL;
+    if (!baseUrl) {
+      console.error('NEXT_PUBLIC_BASE_URL not configured');
+      return;
+    }
+
+    const revalidateUrl = `${baseUrl}/api/revalidate?api_key=${apiKey}&event_id=${event_id}`;
+    
+    const response = await fetch(revalidateUrl, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      console.error('Failed to revalidate cache:', await response.text());
+    } else {
+      console.log('Successfully revalidated cache for event:', event_id);
+    }
+  } catch (error) {
+    console.error('Error calling revalidate API:', error);
+  }
+}
+
 async function processEventUpdate(event_id: string, apiKey: string) {
   const startTime = Date.now();
   const debugInfo: DebugInfo = {
@@ -242,7 +269,6 @@ async function processEventUpdate(event_id: string, apiKey: string) {
     debugInfo.google_search_time = Date.now() - googleSearchStart;
     debugInfo.search_results_count = searchResults.length;
 
-    // Filter articles published AFTER last update date
     const filteredResults = searchResults.filter(result => {
       const articleDate = parseArticleDate(result.publishedDate);
       return isArticleNewer(articleDate, lastUpdated);
@@ -251,7 +277,6 @@ async function processEventUpdate(event_id: string, apiKey: string) {
     debugInfo.filtered_results_count = filteredResults.length;
     debugInfo.has_new_articles = filteredResults.length > 0;
 
-    // If no new articles, return early - no analysis needed
     if (filteredResults.length === 0) {
       debugInfo.total_processing_time = Date.now() - startTime;
       return NextResponse.json({ 
@@ -263,10 +288,8 @@ async function processEventUpdate(event_id: string, apiKey: string) {
       });
     }
 
-    // Select limited links per date
     const selectedResults = selectLinksToScan(filteredResults, 3);
     
-    // Track dates and links per date
     const dateCount = new Map<string, number>();
     selectedResults.forEach(result => {
       const dateKey = result.publishedDate ? result.publishedDate.split('T')[0] : 'unknown';
@@ -285,12 +308,10 @@ async function processEventUpdate(event_id: string, apiKey: string) {
     );
     debugInfo.web_fetch_time = Date.now() - webFetchStart;
 
-    // Since we have new articles, analyze them to extract what happened
     const groqAnalysisStart = Date.now();
     const analysis = await analyzeWithGroq(resultsWithContent, event.query, lastUpdated.toISOString());
     debugInfo.groq_analysis_time = Date.now() - groqAnalysisStart;
     
-    // If analysis failed or returned no updates, return error
     if (!analysis || analysis.updates.length === 0) {
       debugInfo.total_processing_time = Date.now() - startTime;
       return NextResponse.json({ 
@@ -331,7 +352,6 @@ async function processEventUpdate(event_id: string, apiKey: string) {
       }, { status: 500 });
     }
 
-    // Update event status and last_updated
     const mostRecentUpdateDate = analysis.updates[analysis.updates.length - 1].date;
     const { error: updateError } = await supabase
       .from('events')
@@ -345,7 +365,6 @@ async function processEventUpdate(event_id: string, apiKey: string) {
       console.error('Error updating events table:', updateError);
     }
 
-    // Update event_details sources (keep track of source links)
     const newSources = selectedResults.map(r => r.link);
     const { data: existingDetails } = await supabase
       .from('event_details')
@@ -358,17 +377,17 @@ async function processEventUpdate(event_id: string, apiKey: string) {
 
     const { error: detailsError } = await supabase
       .from('event_details')
-      .upsert({
-        event_id: event_id.toString(),
+      .update({
         sources: uniqueSources,
         updated_at: new Date().toISOString()
-      }, {
-        onConflict: 'event_id'
-      });
+      })
+      .eq('event_id', event_id.toString());
 
     if (detailsError) {
       console.error('Error updating event_details:', detailsError);
     }
+
+    await revalidateEventCache(event_id, apiKey);
 
     debugInfo.total_processing_time = Date.now() - startTime;
 
@@ -381,6 +400,7 @@ async function processEventUpdate(event_id: string, apiKey: string) {
       total_search_results: searchResults.length,
       updates_created: analysis.updates.length,
       new_sources_added: newSources.length,
+      cache_revalidated: true,
       debug: debugInfo
     });
 
@@ -521,7 +541,6 @@ async function analyzeWithGroq(
       return null;
     }
     
-    // Validate that we have updates
     if (!analysisResult.updates || !Array.isArray(analysisResult.updates)) {
       console.error('No updates array in response:', analysisResult);
       return null;

@@ -52,12 +52,8 @@ export async function GET(request: NextRequest) {
     });
 
     if (!response.ok) {
-      const urlObj = new URL(decodedUrl);
-      const domain = urlObj.hostname.replace('www.', '');
-      const fallbackTitle = domain.charAt(0).toUpperCase() + domain.slice(1).split('.')[0];
-      
       return NextResponse.json(
-        { title: fallbackTitle },
+        { title: 'Article' },
         { 
           status: 200,
           headers: {
@@ -91,9 +87,7 @@ export async function GET(request: NextRequest) {
     }
     
     if (!title) {
-      const urlObj = new URL(decodedUrl);
-      const domain = urlObj.hostname.replace('www.', '');
-      title = domain.charAt(0).toUpperCase() + domain.slice(1).split('.')[0];
+      title = 'Article';
     }
 
     title = title
@@ -103,17 +97,33 @@ export async function GET(request: NextRequest) {
       .trim();
 
     const siteName = $('meta[property="og:site_name"]').attr('content') || '';
-    if (siteName && title.includes(siteName)) {
-      title = title.replace(` - ${siteName}`, '').replace(` | ${siteName}`, '').trim();
+    if (siteName && title.toLowerCase().includes(siteName.toLowerCase())) {
+      title = title
+        .replace(new RegExp(`\\s*[-|—–]\\s*${siteName}\\s*$`, 'i'), '')
+        .replace(new RegExp(`^${siteName}\\s*[-|—–]\\s*`, 'i'), '')
+        .trim();
     }
 
-    const parts = title.split(/[\|—–-]/);
-    if (parts.length > 1 && parts[0].trim().length > 20) {
-      title = parts[0].trim();
+    const commonSuffixes = ['Home', 'Homepage', 'Official Site', 'Official Website'];
+    commonSuffixes.forEach(suffix => {
+      const regex = new RegExp(`\\s*[-|—–]\\s*${suffix}\\s*$`, 'i');
+      title = title.replace(regex, '').trim();
+    });
+
+    const parts = title.split(/[\|—–]/);
+    if (parts.length > 1) {
+      const mainPart = parts[0].trim();
+      if (mainPart.length > 10) {
+        title = mainPart;
+      }
     }
 
     if (title.length > 120) {
       title = title.substring(0, 117) + '...';
+    }
+
+    if (!title || title.length < 3) {
+      title = 'Article';
     }
 
     const duration = Date.now() - startTime;
@@ -128,33 +138,14 @@ export async function GET(request: NextRequest) {
       }
     );
   } catch (error) {
-    const url = request.nextUrl.searchParams.get('url');
-    if (url) {
-      try {
-        const urlObj = new URL(decodeURIComponent(url));
-        const domain = urlObj.hostname.replace('www.', '');
-        const fallbackTitle = domain.charAt(0).toUpperCase() + domain.slice(1).split('.')[0];
-        
-        return NextResponse.json(
-          { title: fallbackTitle },
-          { 
-            status: 200,
-            headers: {
-              'Cache-Control': 'public, max-age=31536000, s-maxage=31536000, immutable',
-            }
-          }
-        );
-      } catch {
-        return NextResponse.json(
-          { error: 'Failed to fetch page title' },
-          { status: 500 }
-        );
-      }
-    }
-
     return NextResponse.json(
-      { error: 'Failed to fetch page title' },
-      { status: 500 }
+      { title: 'Article' },
+      { 
+        status: 200,
+        headers: {
+          'Cache-Control': 'public, max-age=31536000, s-maxage=31536000, immutable',
+        }
+      }
     );
   }
 }
