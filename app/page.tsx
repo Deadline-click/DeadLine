@@ -15,7 +15,10 @@ interface Event {
 async function getEvents(): Promise<Event[]> {
   try {
     const response = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/api/get/events`, {
-      cache: 'no-store',
+      next: { 
+        revalidate: 3600,
+        tags: ['events-list']
+      }
     });
     
     if (!response.ok) {
@@ -32,7 +35,6 @@ async function getEvents(): Promise<Event[]> {
 }
 
 export const revalidate = 3600;
-export const dynamic = 'force-static';
 
 export default async function DeadlineEventsPage() {
   const events = await getEvents();

@@ -1,57 +1,52 @@
-import { revalidateTag, revalidatePath } from 'next/cache';
-import { NextRequest, NextResponse } from 'next/server';
+import { createClient } from '@supabase/supabase-js';
+import { NextResponse } from 'next/server';
 
-export async function GET(request: NextRequest) {
-  const searchParams = request.nextUrl.searchParams;
-  const api_key = searchParams.get('api_key');
-  const event_id = searchParams.get('event_id');
-  const revalidate_all = searchParams.get('revalidate_all');
+interface Event {
+  event_id: number;
+  title: string;
+  image_url: string | null;
+  status: string;
+  tags: string[] | null;
+  query: string | null;
+  summary: string | null;
+  last_updated: string | null;
+  incident_date: string | null;
+}
 
-  if (!api_key || api_key !== process.env.API_SECRET_KEY) {
-    return NextResponse.json(
-      { success: false, message: 'Invalid API key' },
-      { status: 401 }
-    );
-  }
+const supabase = createClient(
+  process.env.SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
 
+export async function GET() {
   try {
-    const revalidated: string[] = [];
+    const { data: events, error } = await supabase
+      .from('events')
+      .select('*')
+      .order('incident_date', { ascending: false, nullsFirst: false })
+      .order('last_updated', { ascending: false });
 
-    if (revalidate_all === 'true') {
-      revalidateTag('events-list', 'page');
-      revalidatePath('/');
-      revalidated.push('events-list', 'homepage');
-    }
-
-    if (event_id) {
-      revalidateTag(`event-${event_id}`, 'page');
-      revalidateTag(`event-updates-${event_id}`, 'page');
-      revalidatePath(`/event/${event_id}`);
-      revalidated.push(`event-${event_id}`, `event-updates-${event_id}`);
-      
-      revalidateTag('events-list', 'page');
-      revalidatePath('/');
-      revalidated.push('events-list', 'homepage');
-    }
-
-    if (!event_id && revalidate_all !== 'true') {
+    if (error) {
+      console.error('Supabase error:', error);
       return NextResponse.json(
-        { success: false, message: 'event_id or revalidate_all parameter is required' },
-        { status: 400 }
+        { error: 'Failed to fetch events' },
+        { status: 500 }
       );
     }
 
-    return NextResponse.json({
-      success: true,
-      message: revalidate_all === 'true' 
-        ? 'All caches revalidated' 
-        : `Cache revalidated for event ${event_id}`,
-      revalidated,
-      now: Date.now(),
-    });
-  } catch (err) {
     return NextResponse.json(
-      { success: false, message: 'Error revalidating cache', error: String(err) },
+      { events: events || [] },
+      {
+        status: 200,
+        headers: {
+          'Cache-Control': 'public, s-maxage=31536000, stale-while-revalidate=31536000',
+        },
+      }
+    );
+  } catch (error) {
+    console.error('API error:', error);
+    return NextResponse.json(
+      { error: 'Internal server error' },
       { status: 500 }
     );
   }
