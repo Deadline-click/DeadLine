@@ -1,30 +1,7 @@
+import { revalidateTag } from 'next/cache';
 import { NextRequest, NextResponse } from 'next/server';
 
 export const runtime = 'nodejs';
-export const dynamic = 'force-dynamic';
-
-async function callInternalRevalidate(tags: string[]) {
-  try {
-    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL;
-    if (!baseUrl) {
-      console.error('NEXT_PUBLIC_BASE_URL not configured');
-      return false;
-    }
-
-    const response = await fetch(`${baseUrl}/api/internal/revalidate`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ tags }),
-    });
-
-    return response.ok;
-  } catch (error) {
-    console.error('Error calling internal revalidate:', error);
-    return false;
-  }
-}
 
 export async function POST(request: NextRequest) {
   try {
@@ -64,14 +41,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const success = await callInternalRevalidate(tagsToRevalidate);
-
-    if (!success) {
-      return NextResponse.json(
-        { success: false, message: 'Failed to revalidate cache' },
-        { status: 500 }
-      );
-    }
+    await fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/api/internal/revalidate`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        tags: tagsToRevalidate
+      }),
+    });
 
     return NextResponse.json({
       success: true,
@@ -83,7 +61,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error('Revalidation error:', error);
     return NextResponse.json(
-      { success: false, message: 'Internal server error', error: error instanceof Error ? error.message : 'Unknown error' },
+      { success: false, message: 'Internal server error' },
       { status: 500 }
     );
   }
@@ -129,14 +107,15 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const success = await callInternalRevalidate(tagsToRevalidate);
-
-    if (!success) {
-      return NextResponse.json(
-        { success: false, message: 'Failed to revalidate cache' },
-        { status: 500 }
-      );
-    }
+    await fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/api/internal/revalidate`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        tags: tagsToRevalidate
+      }),
+    });
 
     return NextResponse.json({
       success: true,
@@ -148,7 +127,7 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     console.error('Revalidation error:', error);
     return NextResponse.json(
-      { success: false, message: 'Internal server error', error: error instanceof Error ? error.message : 'Unknown error' },
+      { success: false, message: 'Internal server error' },
       { status: 500 }
     );
   }
