@@ -86,17 +86,19 @@ async function getEventDetails(id: string): Promise<EventDetails | null> {
       return null;
     }
 
-    const url = `${baseUrl}/api/get/details?event_id=${id}&api_key=${apiKey}`;
+    const timestamp = Date.now();
+    const url = `${baseUrl}/api/get/details?event_id=${id}&api_key=${apiKey}&_t=${timestamp}`;
 
     const response = await fetch(url, {
       next: { 
-        revalidate: false,
+        revalidate: 0,
         tags: [`event-${id}`, `event-details-${id}`]
       },
       headers: {
         'Content-Type': 'application/json',
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
       },
-      cache: 'force-cache'
+      cache: 'no-store'
     });
 
     if (!response.ok) {
@@ -125,17 +127,19 @@ async function getEventUpdates(id: string): Promise<EventUpdate[]> {
       return [];
     }
 
+    const timestamp = Date.now();
     const response = await fetch(
-      `${baseUrl}/api/get/updates?event_id=${id}&api_key=${apiKey}`,
+      `${baseUrl}/api/get/updates?event_id=${id}&api_key=${apiKey}&_t=${timestamp}`,
       {
         next: { 
-          revalidate: false,
+          revalidate: 0,
           tags: [`event-${id}`, `event-updates-${id}`]
         },
         headers: {
           'Content-Type': 'application/json',
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
         },
-        cache: 'force-cache'
+        cache: 'no-store'
       }
     );
 
@@ -240,8 +244,8 @@ export async function generateMetadata({
   };
 }
 
-export const dynamic = 'force-static';
-export const revalidate = false;
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 export default async function EventPage({ 
   params 

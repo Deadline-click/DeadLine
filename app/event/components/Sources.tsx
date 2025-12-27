@@ -40,7 +40,6 @@ function SourceCard({ sourceData }: { sourceData: SourceData }) {
               onLoad={() => setImageLoaded(true)}
               onError={() => setImageError(true)}
               loading="lazy"
-              decoding="async"
             />
           ) : (
             <div className="w-4 h-4 bg-gray-300 rounded"></div>
@@ -84,9 +83,6 @@ export default function SourcesComponent({ sources }: SourcesProps) {
       }
     });
 
-    console.log('Total sources received:', sources.length);
-    console.log('Valid sources after filtering:', validSources.length);
-
     const initialData: SourceData[] = validSources.map(url => {
       try {
         const trimmedUrl = url.trim();
@@ -101,32 +97,30 @@ export default function SourcesComponent({ sources }: SourcesProps) {
           loading: true
         };
       } catch (e) {
-        console.error('Error parsing URL:', url, e);
         return null;
       }
     }).filter((data): data is SourceData => data !== null);
 
-    console.log('Initial data created:', initialData.length);
     setSourcesData(initialData);
 
     const fetchTitles = async () => {
       try {
         const updatedData = await Promise.all(
-          initialData.map(async (source, index) => {
+          initialData.map(async (source) => {
             try {
-              console.log(`Fetching title ${index + 1}/${initialData.length} for:`, source.url);
-              const response = await fetch(`/api/get/title?url=${encodeURIComponent(source.url)}`);
+              const timestamp = Date.now();
+              const response = await fetch(`/api/get/title?url=${encodeURIComponent(source.url)}&_t=${timestamp}`, {
+                cache: 'no-store'
+              });
               
               if (response.ok) {
                 const data = await response.json();
-                console.log(`Title fetched for ${source.domain}:`, data.title);
+                const headline = data.title || source.domain.charAt(0).toUpperCase() + source.domain.slice(1).split('.')[0];
                 return {
                   ...source,
-                  title: data.title || source.domain.charAt(0).toUpperCase() + source.domain.slice(1).split('.')[0],
+                  title: headline,
                   loading: false
                 };
-              } else {
-                console.error(`Failed to fetch title for ${source.url}, status:`, response.status);
               }
             } catch (error) {
               console.error('Error fetching title for', source.url, error);
@@ -140,7 +134,6 @@ export default function SourcesComponent({ sources }: SourcesProps) {
           })
         );
         
-        console.log('All titles fetched, updating state with:', updatedData.length, 'sources');
         setSourcesData(updatedData);
       } catch (error) {
         console.error('Error fetching titles:', error);

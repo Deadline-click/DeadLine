@@ -7,10 +7,8 @@ interface ImageSliderProps {
 }
 
 export default function ImageSlider({ images }: ImageSliderProps) {
-  const [imageErrors, setImageErrors] = useState<Record<number, boolean>>({});
-  const [imageLoading, setImageLoading] = useState<Record<number, boolean>>({});
+  const [imageStates, setImageStates] = useState<Record<number, { loaded: boolean; error: boolean }>>({});
   const sliderRef = useRef<HTMLDivElement>(null);
-  const loadTimeoutRef = useRef<Record<number, NodeJS.Timeout>>({});
 
   const extendedImages = useMemo(() => {
     if (!images || images.length === 0) return [];
@@ -19,11 +17,11 @@ export default function ImageSlider({ images }: ImageSliderProps) {
 
   useEffect(() => {
     if (extendedImages.length > 0) {
-      const loadingState: Record<number, boolean> = {};
+      const initialStates: Record<number, { loaded: boolean; error: boolean }> = {};
       extendedImages.forEach((_, idx) => {
-        loadingState[idx] = true;
+        initialStates[idx] = { loaded: false, error: false };
       });
-      setImageLoading(loadingState);
+      setImageStates(initialStates);
     }
   }, [extendedImages]);
 
@@ -54,35 +52,25 @@ export default function ImageSlider({ images }: ImageSliderProps) {
         const itemWidth = slideWidth + gap;
         slider.scrollLeft = images.length * itemWidth;
       }
-    }, 300);
+    }, 100);
 
     return () => {
       slider.removeEventListener('scroll', handleScroll);
-      Object.values(loadTimeoutRef.current).forEach(timeout => clearTimeout(timeout));
     };
   }, [extendedImages, images.length]);
 
   const handleImageError = (index: number) => {
-    if (loadTimeoutRef.current[index]) {
-      clearTimeout(loadTimeoutRef.current[index]);
-    }
-    setImageErrors(prev => ({ ...prev, [index]: true }));
-    setImageLoading(prev => ({ ...prev, [index]: false }));
+    setImageStates(prev => ({ 
+      ...prev, 
+      [index]: { loaded: true, error: true } 
+    }));
   };
 
   const handleImageLoad = (index: number) => {
-    if (loadTimeoutRef.current[index]) {
-      clearTimeout(loadTimeoutRef.current[index]);
-    }
-    setTimeout(() => {
-      setImageLoading(prev => ({ ...prev, [index]: false }));
-    }, 500);
-  };
-
-  const handleImageStart = (index: number) => {
-    loadTimeoutRef.current[index] = setTimeout(() => {
-      setImageLoading(prev => ({ ...prev, [index]: false }));
-    }, 20000);
+    setImageStates(prev => ({ 
+      ...prev, 
+      [index]: { loaded: true, error: false } 
+    }));
   };
 
   if (!images || images.length === 0) {
@@ -115,34 +103,37 @@ export default function ImageSlider({ images }: ImageSliderProps) {
               willChange: 'scroll-position'
             }}
           >
-            {extendedImages.map((image, index) => (
-              !imageErrors[index] && (
+            {extendedImages.map((image, index) => {
+              const state = imageStates[index] || { loaded: false, error: false };
+              
+              if (state.error) {
+                return null;
+              }
+
+              return (
                 <div
                   key={`image-${index}`}
                   className="flex-shrink-0 w-70 h-52 bg-gray-50 overflow-hidden relative border border-gray-200"
                 >
-                  {imageLoading[index] && (
-                    <div className="absolute inset-0 bg-gray-200 animate-pulse">
+                  {!state.loaded && (
+                    <div className="absolute inset-0 bg-gray-200">
                       <div className="absolute inset-0 bg-gradient-to-r from-gray-200 via-gray-100 to-gray-200 animate-shimmer"></div>
                     </div>
                   )}
                   <img
-                    src={image}
+                    src={`${image}?t=${Date.now()}`}
                     alt={`Gallery image ${(index % images.length) + 1}`}
-                    className={`w-full h-full object-cover select-none transition-opacity duration-500 ${
-                      imageLoading[index] ? 'opacity-0' : 'opacity-100'
+                    className={`w-full h-full object-cover select-none transition-opacity duration-300 ${
+                      state.loaded ? 'opacity-100' : 'opacity-0'
                     }`}
-                    onLoadStart={() => handleImageStart(index)}
                     onLoad={() => handleImageLoad(index)}
                     onError={() => handleImageError(index)}
                     draggable={false}
                     loading={index < images.length ? 'eager' : 'lazy'}
-                    decoding="async"
-                    fetchPriority={index < 3 ? 'high' : 'auto'}
                   />
                 </div>
-              )
-            ))}
+              );
+            })}
           </div>
         </div>
       </section>
