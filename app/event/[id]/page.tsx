@@ -407,12 +407,21 @@ export default async function EventPage({
       <meta property="og:title" content={safeEventDetails.headline} />
       <meta property="og:description" content={truncateText(safeEventDetails.details?.overview || '', 200)} />
       <meta property="og:image" content={imageUrl} />
+      <meta property="og:image:secure_url" content={imageUrl} />
+      <meta property="og:image:type" content="image/jpeg" />
       <meta property="og:image:width" content="1200" />
       <meta property="og:image:height" content="630" />
       <meta property="og:image:alt" content={safeEventDetails.headline} />
       <meta property="og:url" content={`${baseUrl}/event/${id}`} />
       <meta property="article:published_time" content={safeEventDetails.created_at} />
       <meta property="article:modified_time" content={safeEventDetails.updated_at} />
+      
+      <meta property="og:locale" content="en_US" />
+      <meta property="og:site_name" content="DEADLINE" />
+      
+      <meta name="description" content={truncateText(safeEventDetails.details?.overview || '', 200)} />
+      
+      <link rel="canonical" href={`${baseUrl}/event/${id}`} />
       
       <div className="min-h-screen bg-gray-50 scroll-smooth" style={{ fontFamily: 'system-ui, -apple-system, sans-serif' }}>
         <header className="border-b border-black bg-white sticky top-0 z-50">
