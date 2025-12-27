@@ -244,7 +244,7 @@ export async function generateMetadata({
   }
 
   const title = eventDetails.headline;
-  const description = truncateText(eventDetails.details?.overview || '', 200);
+  const description = truncateText(eventDetails.details?.overview || '', 160);
   const imageUrl = eventDetails.images && eventDetails.images.length > 0 
     ? eventDetails.images[0] 
     : `${process.env.NEXT_PUBLIC_BASE_URL}/og-default.png`;
@@ -263,7 +263,7 @@ export async function generateMetadata({
     openGraph: {
       type: 'article',
       url,
-      title,
+      title: `${title} | DEADLINE`,
       description,
       siteName: 'DEADLINE',
       locale: 'en_US',
@@ -281,7 +281,7 @@ export async function generateMetadata({
     },
     twitter: {
       card: 'summary_large_image',
-      title,
+      title: `${title} | DEADLINE`,
       description,
       images: [imageUrl],
       creator: '@deadline',
@@ -303,6 +303,18 @@ export async function generateMetadata({
       canonical: url,
     },
     metadataBase: new URL(baseUrl),
+    other: {
+      'og:image:secure_url': imageUrl,
+      'og:image:type': 'image/jpeg',
+      'twitter:label1': 'Location',
+      'twitter:data1': eventDetails.location,
+      'twitter:label2': 'Published',
+      'twitter:data2': new Date(eventDetails.created_at).toLocaleDateString('en-US', { 
+        year: 'numeric', 
+        month: 'long', 
+        day: 'numeric' 
+      }),
+    },
   };
 }
 
@@ -363,7 +375,7 @@ export default async function EventPage({
     '@context': 'https://schema.org',
     '@type': 'NewsArticle',
     headline: safeEventDetails.headline,
-    description: truncateText(safeEventDetails.details?.overview || '', 200),
+    description: truncateText(safeEventDetails.details?.overview || '', 160),
     image: imageUrl,
     datePublished: safeEventDetails.created_at,
     dateModified: safeEventDetails.updated_at,
@@ -393,35 +405,6 @@ export default async function EventPage({
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
       />
-      
-      <meta name="twitter:card" content="summary_large_image" />
-      <meta name="twitter:site" content="@deadline" />
-      <meta name="twitter:creator" content="@deadline" />
-      <meta name="twitter:title" content={safeEventDetails.headline} />
-      <meta name="twitter:description" content={truncateText(safeEventDetails.details?.overview || '', 200)} />
-      <meta name="twitter:image" content={imageUrl} />
-      <meta name="twitter:image:alt" content={safeEventDetails.headline} />
-      
-      <meta property="og:type" content="article" />
-      <meta property="og:site_name" content="DEADLINE" />
-      <meta property="og:title" content={safeEventDetails.headline} />
-      <meta property="og:description" content={truncateText(safeEventDetails.details?.overview || '', 200)} />
-      <meta property="og:image" content={imageUrl} />
-      <meta property="og:image:secure_url" content={imageUrl} />
-      <meta property="og:image:type" content="image/jpeg" />
-      <meta property="og:image:width" content="1200" />
-      <meta property="og:image:height" content="630" />
-      <meta property="og:image:alt" content={safeEventDetails.headline} />
-      <meta property="og:url" content={`${baseUrl}/event/${id}`} />
-      <meta property="article:published_time" content={safeEventDetails.created_at} />
-      <meta property="article:modified_time" content={safeEventDetails.updated_at} />
-      
-      <meta property="og:locale" content="en_US" />
-      <meta property="og:site_name" content="DEADLINE" />
-      
-      <meta name="description" content={truncateText(safeEventDetails.details?.overview || '', 200)} />
-      
-      <link rel="canonical" href={`${baseUrl}/event/${id}`} />
       
       <div className="min-h-screen bg-gray-50 scroll-smooth" style={{ fontFamily: 'system-ui, -apple-system, sans-serif' }}>
         <header className="border-b border-black bg-white sticky top-0 z-50">
