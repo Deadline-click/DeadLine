@@ -67,54 +67,66 @@ export default function SourcesComponent({ sources }: SourcesProps) {
 
   useEffect(() => {
     setMounted(true);
+  }, []);
 
-    if (!sources || sources.length === 0) {
+  useEffect(() => {
+    if (!mounted || !sources || sources.length === 0) {
       return;
     }
 
     const validSources = sources.filter(source => {
-      if (!source || typeof source !== 'string') return false;
+      if (!source || typeof source !== 'string' || source.trim() === '') return false;
       try {
-        new URL(source);
-        return true;
+        const testUrl = new URL(source.trim());
+        return testUrl.protocol === 'http:' || testUrl.protocol === 'https:';
       } catch {
         return false;
       }
     });
 
+    console.log('Total sources received:', sources.length);
+    console.log('Valid sources after filtering:', validSources.length);
+
     const initialData: SourceData[] = validSources.map(url => {
       try {
-        const urlObj = new URL(url);
+        const trimmedUrl = url.trim();
+        const urlObj = new URL(trimmedUrl);
         const domain = urlObj.hostname.replace('www.', '');
         
         return {
-          url,
+          url: trimmedUrl,
           domain,
-          title: domain.charAt(0).toUpperCase() + domain.slice(1).split('.')[0],
+          title: 'Loading...',
           favicon: `https://www.google.com/s2/favicons?domain=${domain}&sz=64`,
           loading: true
         };
-      } catch {
+      } catch (e) {
+        console.error('Error parsing URL:', url, e);
         return null;
       }
     }).filter((data): data is SourceData => data !== null);
 
+    console.log('Initial data created:', initialData.length);
     setSourcesData(initialData);
 
     const fetchTitles = async () => {
       try {
         const updatedData = await Promise.all(
-          initialData.map(async (source) => {
+          initialData.map(async (source, index) => {
             try {
+              console.log(`Fetching title ${index + 1}/${initialData.length} for:`, source.url);
               const response = await fetch(`/api/get/title?url=${encodeURIComponent(source.url)}`);
               
               if (response.ok) {
                 const data = await response.json();
+                console.log(`Title fetched for ${source.domain}:`, data.title);
                 return {
                   ...source,
                   title: data.title || source.domain.charAt(0).toUpperCase() + source.domain.slice(1).split('.')[0],
                   loading: false
                 };
+              } else {
+                console.error(`Failed to fetch title for ${source.url}, status:`, response.status);
               }
             } catch (error) {
               console.error('Error fetching title for', source.url, error);
@@ -122,20 +134,26 @@ export default function SourcesComponent({ sources }: SourcesProps) {
             
             return {
               ...source,
+              title: source.domain.charAt(0).toUpperCase() + source.domain.slice(1).split('.')[0],
               loading: false
             };
           })
         );
         
+        console.log('All titles fetched, updating state with:', updatedData.length, 'sources');
         setSourcesData(updatedData);
       } catch (error) {
         console.error('Error fetching titles:', error);
-        setSourcesData(initialData.map(s => ({ ...s, loading: false })));
+        setSourcesData(initialData.map(s => ({ 
+          ...s, 
+          title: s.domain.charAt(0).toUpperCase() + s.domain.slice(1).split('.')[0],
+          loading: false 
+        })));
       }
     };
 
     fetchTitles();
-  }, [sources]);
+  }, [mounted, sources]);
 
   if (!mounted) {
     return null;
@@ -154,14 +172,14 @@ export default function SourcesComponent({ sources }: SourcesProps) {
     );
   }
 
-  if (sourcesData.length === 0) {
+  if (sourcesData.length === 0 && mounted) {
     return (
       <section className="mb-6">
         <h3 className="text-base font-bold mb-3 sm:mb-4 text-black border-b-2 border-black pb-2 font-mono uppercase">
           SOURCES
         </h3>
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-3">
-          {sources.slice(0, 8).map((source, index) => (
+          {Array.from({ length: Math.min(sources?.length || 0, 12) }).map((_, index) => (
             <div key={index} className="bg-white border border-black p-3 sm:p-4">
               <div className="flex flex-col items-center space-y-2">
                 <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full border-2 border-black overflow-hidden bg-gray-200 animate-pulse"></div>

@@ -54,7 +54,7 @@ export default function ImageSlider({ images }: ImageSliderProps) {
         const itemWidth = slideWidth + gap;
         slider.scrollLeft = images.length * itemWidth;
       }
-    }, 100);
+    }, 300);
 
     return () => {
       slider.removeEventListener('scroll', handleScroll);
@@ -76,13 +76,13 @@ export default function ImageSlider({ images }: ImageSliderProps) {
     }
     setTimeout(() => {
       setImageLoading(prev => ({ ...prev, [index]: false }));
-    }, 200);
+    }, 500);
   };
 
   const handleImageStart = (index: number) => {
     loadTimeoutRef.current[index] = setTimeout(() => {
       setImageLoading(prev => ({ ...prev, [index]: false }));
-    }, 15000);
+    }, 20000);
   };
 
   if (!images || images.length === 0) {

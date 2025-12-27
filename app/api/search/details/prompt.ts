@@ -3,56 +3,78 @@ export function buildAnalysisPrompt(query: string, articleContent: string, topSn
 
 Return ONLY valid JSON (no markdown, no code blocks, no text). Start with { and end with }.
 
+GLOBAL FORMATTING RULES:
+- Use exact numbers, complete names/titles, full statute sections, exact currency symbols (₹, Rs, $), precise timestamps
+- Escape all quotes with backslash
+- Include ONLY information available in sources - skip unavailable fields
+- Each fact appears once in its most logical location
+- Bold formatting (**text**) in "overview" field, limited to 2-3 instances for keywords or names or facts. and for other than overview only 1 instance and only in summary.
+- NO bold in any other fields (summaries, descriptions, etc.)
+- For groups: include count in name field 
+JSON STRUCTURE:
+
 {
   "title": "30-40 word title: Include all accused names/organizations OR count if 3+. Include all victim names OR count if 3+. Specify what happened.",
-  "headline": "25-35 word punchy headline: Lead with the most newsworthy element. Use active voice and strong verbs. Format like a news headline with impact. NO location.",
-  "location": "Complete address: venue, area, city, district, state, country",
+  
+  "headline": "25-35 word punchy headline: Lead with most newsworthy element. Active voice, strong verbs, front-page impact. NO location.",
+  
+  "location": "Complete address: venue, area, city, district, state",
+  
   "details": {
-    "overview": "600-800 word narrative. Use **bold** 2-3 times max for critical terms (2-3 words each). Cover: background, parties, chronology, consequences, legal proceedings, status, implications.",
+    "overview": "600-800 word narrative (single paragraph). Cover: background, parties, chronology, consequences, legal proceedings, status, implications. Use **bold** 2-3 times max for important keywords (2-3 words each).",
+    
     "keyPoints": [
-      {"label": "1-2 words", "value": "Max 10 words with exact facts"}
+      {"label": "1-2 words", "value": "Max 9 words with exact facts"}
     ]
+    // 4-6 NEW facts not in overview
   },
+  
   "accused": {
     "individuals": [
       {
-        "name": "Full accurate name",
-        "summary": "4-6 sentences: name/aliases, age, occupation/employer, address, role in incident, actions/timeline, relationship to victims, family/criminal history, custody status. NO bold.",
+        "name": "Full accurate name (REQUIRED as first field)",
+        "summary": "3-4 compact sentences: name/aliases, age, occupation/employer, address, role in incident, actions/timeline, relationship to victims, family/criminal history, custody status. NO bold.",
         "details": [
           {"label": "Accused", "value": "Accused party information"}
         ]
+        // 2-3 label-value pairs with NEW information not in summary
       }
     ],
     "organizations": [
       {
-        "name": "Full accurate organization name (include count if group, e.g., '5 Officers from XYZ Department')",
-        "summary": "4-6 sentences: name/registration, type/industry, jurisdiction, leadership, role, actions/failures, relationship, violations, history, response. NO bold.",
+        "name": "Full accurate organization name (REQUIRED as first field, include count if group)",
+        "summary": "3-4 compact sentences: name/registration, type/industry, jurisdiction, leadership, role, actions/failures, relationship, violations, history, response. NO bold.",
         "details": [
           {"label": "Accused", "value": "Accused party information"}
         ]
+        // 2-3 label-value pairs with NEW information not in summary
       }
     ]
   },
+  
   "victims": {
     "individuals": [
       {
-        "name": "Full accurate name or description",
-        "summary": "4-6 sentences: name/description, age/gender, occupation/workplace, address, relationship to accused, harm/injuries, treatment/hospital, condition/prognosis, family impact, compensation. NO bold.",
+        "name": "Full accurate name or description (REQUIRED as first field)",
+        "summary": "3-4 sentences: name/description, age/gender, occupation/workplace, address, relationship to accused, harm/injuries, treatment/hospital, condition/prognosis, family impact, compensation. NO bold.",
         "details": [
           {"label": "Victim", "value": "Victim party information"}
         ]
+        // 2-3 label-value pairs with NEW information not in summary
       }
     ],
     "groups": [
       {
-        "name": "Accurate group description (include count, e.g., '12 Students from ABC School')",
-        "summary": "4-6 sentences: size/demographics, composition, location/community, relationship, collective harm, impact, legal action, support. NO bold.",
+        "name": "Accurate group description (REQUIRED as first field, include count)",
+        "summary": "3-4 compact sentences: size/demographics, composition, location/community, relationship, collective harm, impact, legal action, support. NO bold.",
         "details": [
           {"label": "Victims", "value": "Victim party information"}
         ]
+        // 2-3 label-value pairs with NEW information not in summary
       }
     ]
   },
+  
   "timeline": [
     {
       "date": "March 15, 2024",
@@ -65,41 +87,11 @@ Return ONLY valid JSON (no markdown, no code blocks, no text). Start with { and 
           "evidence": "Exhaustive list with specifics"
         }
       ]
+      // Critical dates: 4-6 events | Significant dates: 4-6 events | Routine dates: 1-2 events
     }
   ]
+  // Chronological order, one entry per date mentioned
 }
-
-EXTRACTION REQUIREMENTS:
-
-Extract every fact, date, name, number, quote from sources.
-
-Title must be 30-40 words and list all accused/victim names if 1-2 each, OR state count if 3+ (e.g., "5 Police Officers Accused in Assault of 3 Minors"). Specify incident type clearly.
-
-Headline must be 25-35 words formatted as a compelling news headline. Lead with the most impactful element using active voice and strong verbs. Capture attention like front-page news. NO location information.
-
-Location requires complete address hierarchy from venue to country.
-
-Overview must be 600-800 words in single paragraph format with **bold** used 2-3 times maximum for critical terms only.
-
-Key Points must contain 10-15 NEW facts not already mentioned in overview.
-
-Every accused/victim entry MUST have "name" as the first field with accurate spelling. For groups in accused organizations or victim groups, include the count in the name field (e.g., "5 Officers from City Police" or "12 Students from Springfield High").
-
-Summaries must be exactly 4-6 sentences with NO bold formatting whatsoever.
-
-Details must use "Accused"/"Victim"/"Victims" as labels with values containing party-specific information. Include 5-8 label-value pairs with NEW information not in summary.
-
-Timeline requires one entry per date mentioned in chronological order. Critical dates need 15-25 events, significant dates need 10-15 events, routine dates need 5-8 events.
-
-Use exact numbers, complete names/titles, full statute sections, exact currency symbols (₹, Rs, $), and precise timestamps throughout.
-
-Each fact should appear only once in its most logical location.
-
-Bold formatting only allowed in overview using **text** format, limited to 2-3 instances maximum.
-
-Escape all quotes with backslash.
-
-ONLY include label-value pairs for information that IS available in the sources - skip any fields where information is not mentioned.
 
 SOURCES:
 ${topSnippets}

@@ -25,7 +25,7 @@ RESPONSE FORMAT (JSON only):
     {
       "date": "YYYY-MM-DD",
       "title": "Specific development description",
-      "description": "Complete summary with key facts, numbers, names. Use **keyword** once for most important term."
+      "description": "Use 2-4 Compact Scentences. Complete summary with key facts, numbers, names. Use **keyword** once for most important keyword or name or fact or date."
     }
   ]
 }

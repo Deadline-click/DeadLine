@@ -1,25 +1,33 @@
 import { NextRequest, NextResponse } from 'next/server';
+import * as cheerio from 'cheerio';
 
 export const dynamic = 'force-static';
 export const revalidate = false;
 
 export async function GET(request: NextRequest) {
+  const startTime = Date.now();
+  let decodedUrl = '';
+  
   try {
     const { searchParams } = new URL(request.url);
     const url = searchParams.get('url');
 
+    console.log('[Title API] Request received for URL:', url);
+
     if (!url) {
+      console.error('[Title API] No URL parameter provided');
       return NextResponse.json(
         { error: 'URL parameter is required' },
         { status: 400 }
       );
     }
 
-    let decodedUrl: string;
     try {
       decodedUrl = decodeURIComponent(url);
       new URL(decodedUrl);
-    } catch {
+      console.log('[Title API] Decoded URL:', decodedUrl);
+    } catch (e) {
+      console.error('[Title API] Invalid URL format:', url, e);
       return NextResponse.json(
         { error: 'Invalid URL format' },
         { status: 400 }
@@ -32,13 +40,26 @@ export async function GET(request: NextRequest) {
         tags: [`title-${decodedUrl}`]
       },
       headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.5',
+        'Accept-Encoding': 'gzip, deflate, br',
+        'DNT': '1',
+        'Connection': 'keep-alive',
+        'Upgrade-Insecure-Requests': '1',
+        'Sec-Fetch-Dest': 'document',
+        'Sec-Fetch-Mode': 'navigate',
+        'Sec-Fetch-Site': 'none',
+        'Cache-Control': 'max-age=0',
       },
       cache: 'force-cache',
-      signal: AbortSignal.timeout(10000),
+      signal: AbortSignal.timeout(15000),
     });
 
+    console.log('[Title API] Fetch response status:', response.status, 'for', decodedUrl);
+
     if (!response.ok) {
+      console.warn('[Title API] Non-OK response:', response.status, 'for', decodedUrl);
       const urlObj = new URL(decodedUrl);
       const domain = urlObj.hostname.replace('www.', '');
       const fallbackTitle = domain.charAt(0).toUpperCase() + domain.slice(1).split('.')[0];
@@ -55,12 +76,32 @@ export async function GET(request: NextRequest) {
     }
 
     const html = await response.text();
+    console.log('[Title API] HTML fetched, length:', html.length, 'for', decodedUrl);
+    const $ = cheerio.load(html);
     
-    const titleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i);
-    const ogTitleMatch = html.match(/<meta[^>]*property=["']og:title["'][^>]*content=["']([^"']+)["']/i);
-    const twitterTitleMatch = html.match(/<meta[^>]*name=["']twitter:title["'][^>]*content=["']([^"']+)["']/i);
+    let title = '';
     
-    let title = ogTitleMatch?.[1] || twitterTitleMatch?.[1] || titleMatch?.[1];
+    title = $('meta[property="og:title"]').attr('content') || '';
+    
+    if (!title) {
+      title = $('meta[name="twitter:title"]').attr('content') || '';
+    }
+    
+    if (!title) {
+      title = $('h1').first().text().trim();
+    }
+    
+    if (!title) {
+      title = $('title').text().trim();
+    }
+    
+    if (!title) {
+      title = $('meta[name="title"]').attr('content') || '';
+    }
+    
+    if (!title) {
+      title = $('meta[property="twitter:title"]').attr('content') || '';
+    }
     
     if (!title) {
       const urlObj = new URL(decodedUrl);
@@ -69,16 +110,27 @@ export async function GET(request: NextRequest) {
     }
 
     title = title
-      .replace(/&amp;/g, '&')
-      .replace(/&lt;/g, '<')
-      .replace(/&gt;/g, '>')
-      .replace(/&quot;/g, '"')
-      .replace(/&#39;/g, "'")
+      .replace(/\s+/g, ' ')
+      .replace(/\n+/g, ' ')
+      .replace(/\t+/g, ' ')
       .trim();
 
-    if (title.length > 100) {
-      title = title.substring(0, 97) + '...';
+    const siteName = $('meta[property="og:site_name"]').attr('content') || '';
+    if (siteName && title.includes(siteName)) {
+      title = title.replace(` - ${siteName}`, '').replace(` | ${siteName}`, '').trim();
     }
+
+    const parts = title.split(/[\|—–-]/);
+    if (parts.length > 1 && parts[0].trim().length > 20) {
+      title = parts[0].trim();
+    }
+
+    if (title.length > 120) {
+      title = title.substring(0, 117) + '...';
+    }
+
+    const duration = Date.now() - startTime;
+    console.log(`[Title API] Success! Extracted title: "${title}" (took ${duration}ms) for ${decodedUrl}`);
 
     return NextResponse.json(
       { title },
@@ -90,7 +142,12 @@ export async function GET(request: NextRequest) {
       }
     );
   } catch (error) {
-    console.error('Error fetching page title:', error);
+    const duration = Date.now() - startTime;
+    console.error(`[Title API] Error after ${duration}ms:`, error);
+    console.error('[Title API] Error details:', {
+      message: error instanceof Error ? error.message : 'Unknown error',
+      url: decodedUrl || 'unknown'
+    });
     
     const url = request.nextUrl.searchParams.get('url');
     if (url) {

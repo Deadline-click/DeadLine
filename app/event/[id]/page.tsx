@@ -177,30 +177,37 @@ export async function generateMetadata({
     };
   }
 
-  const title = `${eventDetails.headline} - DEADLINE`;
-  const description = truncateText(eventDetails.details?.overview || '', 160);
+  const title = eventDetails.headline;
+  const description = truncateText(eventDetails.details?.overview || '', 200);
   const imageUrl = eventDetails.images && eventDetails.images.length > 0 
     ? eventDetails.images[0] 
-    : '/og-default.png';
+    : `${process.env.NEXT_PUBLIC_BASE_URL}/og-default.png`;
   
   const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://deadline.com';
   const url = `${baseUrl}/event/${id}`;
 
   return {
-    title,
+    title: `${title} | DEADLINE`,
     description,
+    keywords: ['news', 'investigation', 'deadline', eventDetails.location, 'events'],
+    authors: [{ name: 'DEADLINE' }],
+    creator: 'DEADLINE',
+    publisher: 'DEADLINE',
+    applicationName: 'DEADLINE',
     openGraph: {
       type: 'article',
       url,
       title,
       description,
       siteName: 'DEADLINE',
+      locale: 'en_US',
       images: [
         {
           url: imageUrl,
           width: 1200,
           height: 630,
           alt: eventDetails.headline,
+          type: 'image/jpeg',
         },
       ],
       publishedTime: eventDetails.created_at,
@@ -217,6 +224,7 @@ export async function generateMetadata({
     robots: {
       index: true,
       follow: true,
+      nocache: false,
       googleBot: {
         index: true,
         follow: true,
@@ -228,6 +236,7 @@ export async function generateMetadata({
     alternates: {
       canonical: url,
     },
+    metadataBase: new URL(baseUrl),
   };
 }
 
@@ -277,25 +286,36 @@ export default async function EventPage({
 
   const safeEventUpdates = Array.isArray(eventUpdates) ? eventUpdates : [];
 
+  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://deadline.com';
+  const imageUrl = safeEventDetails.images.length > 0 
+    ? safeEventDetails.images[0] 
+    : `${baseUrl}/og-default.png`;
+
   const structuredData = {
     '@context': 'https://schema.org',
     '@type': 'NewsArticle',
     headline: safeEventDetails.headline,
-    description: truncateText(safeEventDetails.details?.overview || '', 160),
-    image: safeEventDetails.images.length > 0 ? safeEventDetails.images[0] : undefined,
+    description: truncateText(safeEventDetails.details?.overview || '', 200),
+    image: imageUrl,
     datePublished: safeEventDetails.created_at,
     dateModified: safeEventDetails.updated_at,
     author: {
       '@type': 'Organization',
       name: 'DEADLINE',
+      url: baseUrl,
     },
     publisher: {
       '@type': 'Organization',
       name: 'DEADLINE',
+      url: baseUrl,
       logo: {
         '@type': 'ImageObject',
-        url: `${process.env.NEXT_PUBLIC_BASE_URL}/logo.png`,
+        url: `${baseUrl}/logo.png`,
       },
+    },
+    mainEntityOfPage: {
+      '@type': 'WebPage',
+      '@id': `${baseUrl}/event/${id}`,
     },
   };
 
@@ -305,6 +325,27 @@ export default async function EventPage({
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
       />
+      
+      <meta name="twitter:card" content="summary_large_image" />
+      <meta name="twitter:site" content="@deadline" />
+      <meta name="twitter:creator" content="@deadline" />
+      <meta name="twitter:title" content={safeEventDetails.headline} />
+      <meta name="twitter:description" content={truncateText(safeEventDetails.details?.overview || '', 200)} />
+      <meta name="twitter:image" content={imageUrl} />
+      <meta name="twitter:image:alt" content={safeEventDetails.headline} />
+      
+      <meta property="og:type" content="article" />
+      <meta property="og:site_name" content="DEADLINE" />
+      <meta property="og:title" content={safeEventDetails.headline} />
+      <meta property="og:description" content={truncateText(safeEventDetails.details?.overview || '', 200)} />
+      <meta property="og:image" content={imageUrl} />
+      <meta property="og:image:width" content="1200" />
+      <meta property="og:image:height" content="630" />
+      <meta property="og:image:alt" content={safeEventDetails.headline} />
+      <meta property="og:url" content={`${baseUrl}/event/${id}`} />
+      <meta property="article:published_time" content={safeEventDetails.created_at} />
+      <meta property="article:modified_time" content={safeEventDetails.updated_at} />
+      
       <div className="min-h-screen bg-gray-50 scroll-smooth" style={{ fontFamily: 'system-ui, -apple-system, sans-serif' }}>
         <header className="border-b border-black bg-white sticky top-0 z-50">
           <div className="max-w-full mx-auto px-6 py-3">
