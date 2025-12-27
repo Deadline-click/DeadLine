@@ -1,7 +1,7 @@
 import { notFound } from 'next/navigation';
-import ImageSlider from './components/ImageSlider';
-import EventDetailsComponent from './components/EventDetails';
-import SourcesComponent from './components/Sources';
+import ImageSlider from '../components/ImageSlider';
+import EventDetailsComponent from '../components/EventDetails';
+import SourcesComponent from '../components/Sources';
 
 interface KeyFact {
   label: string;

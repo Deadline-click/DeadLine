@@ -1,3 +1,4 @@
+// events-client.tsx
 'use client';
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
@@ -55,15 +56,16 @@ export function EventsClient({ initialEvents }: EventsClientProps) {
   const observerTarget = useRef<HTMLDivElement>(null);
   const router = useRouter();
   const ITEMS_PER_PAGE = 30;
-  const categories = ['All', 'Justice', 'Injustice', 'Society'];
+  const categories = ['All', 'Justice', 'Injustice'];
 
   const filteredEvents = useMemo(() => {
     if (activeFilter === 'All') return initialEvents;
     
     return initialEvents.filter(event => {
+      const statusLower = event.status.toLowerCase();
       const filterLower = activeFilter.toLowerCase();
-      return event.tags?.some(tag => tag.toLowerCase().includes(filterLower)) ||
-             event.status.toLowerCase().includes(filterLower);
+      
+      return statusLower === filterLower;
     });
   }, [initialEvents, activeFilter]);
 
@@ -129,16 +131,17 @@ export function EventsClient({ initialEvents }: EventsClientProps) {
   }, []);
 
   const getStatusLabel = useCallback((status: string) => {
-    switch (status.toLowerCase()) {
-      case 'injustice':
-        return 'INJUSTICE';
-      case 'resolved':
-        return 'JUSTICE';
-      case 'pending':
-        return 'DEVELOPING';
-      default:
-        return status.toUpperCase();
-    }
+    const statusLower = status.toLowerCase();
+    if (statusLower === 'justice') return 'JUSTICE';
+    if (statusLower === 'injustice') return 'INJUSTICE';
+    return status.toUpperCase();
+  }, []);
+
+  const getStatusColor = useCallback((status: string) => {
+    const statusLower = status.toLowerCase();
+    if (statusLower === 'justice') return 'bg-green-600 text-white';
+    if (statusLower === 'injustice') return 'bg-red-600 text-white';
+    return 'bg-black text-white';
   }, []);
 
   const handleEventClick = useCallback((eventId: number) => {
@@ -212,7 +215,7 @@ export function EventsClient({ initialEvents }: EventsClientProps) {
                   <div className="space-y-4">
                     <div className="flex items-center justify-between text-xs font-normal tracking-widest text-black font-mono">
                       <time>{formatDate(event.incident_date)}</time>
-                      <span className="bg-black text-white px-2 py-1 tracking-wide">
+                      <span className={`px-2 py-1 tracking-wide ${getStatusColor(event.status)}`}>
                         {getStatusLabel(event.status)}
                       </span>
                     </div>
