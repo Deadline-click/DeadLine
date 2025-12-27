@@ -1,3 +1,5 @@
+'use client';
+
 import { useState, useRef, useEffect, useMemo } from 'react';
 
 interface ImageSliderProps {
@@ -95,51 +97,53 @@ export default function ImageSlider({ images }: ImageSliderProps) {
   }
 
   return (
-    <section className="mb-6">
-      <h3 className="text-lg font-bold uppercase tracking-tight mb-3 border-b-2 border-black pb-2 text-black font-mono">
-        IMAGE GALLERY
-      </h3>
-      <div className="relative">
-        <div
-          ref={sliderRef}
-          className="flex overflow-x-auto gap-3 pb-3 scrollbar-hide cursor-grab active:cursor-grabbing"
-          style={{
-            scrollbarWidth: 'none',
-            msOverflowStyle: 'none',
-            WebkitOverflowScrolling: 'touch',
-            willChange: 'scroll-position'
-          }}
-        >
-          {extendedImages.map((image, index) => (
-            !imageErrors[index] && (
-              <div
-                key={`image-${index}`}
-                className="flex-shrink-0 w-70 h-52 bg-gray-50 overflow-hidden relative border border-gray-200"
-              >
-                {imageLoading[index] && (
-                  <div className="absolute inset-0 bg-gray-200 animate-pulse">
-                    <div className="absolute inset-0 bg-gradient-to-r from-gray-200 via-gray-100 to-gray-200 animate-shimmer"></div>
-                  </div>
-                )}
-                <img
-                  src={image}
-                  alt={`Gallery image ${(index % images.length) + 1}`}
-                  className={`w-full h-full object-cover select-none transition-opacity duration-300 ${
-                    imageLoading[index] ? 'opacity-0' : 'opacity-100'
-                  }`}
-                  onLoadStart={() => handleImageStart(index)}
-                  onLoad={() => handleImageLoad(index)}
-                  onError={() => handleImageError(index)}
-                  draggable={false}
-                  loading={index < images.length ? 'eager' : 'lazy'}
-                  decoding="async"
-                  fetchPriority={index < 3 ? 'high' : 'auto'}
-                />
-              </div>
-            )
-          ))}
+    <>
+      <section className="mb-6">
+        <h3 className="text-lg font-bold uppercase tracking-tight mb-3 border-b-2 border-black pb-2 text-black font-mono">
+          IMAGE GALLERY
+        </h3>
+        <div className="relative">
+          <div
+            ref={sliderRef}
+            className="flex overflow-x-auto gap-3 pb-3 scrollbar-hide cursor-grab active:cursor-grabbing"
+            style={{
+              scrollbarWidth: 'none',
+              msOverflowStyle: 'none',
+              WebkitOverflowScrolling: 'touch',
+              willChange: 'scroll-position'
+            }}
+          >
+            {extendedImages.map((image, index) => (
+              !imageErrors[index] && (
+                <div
+                  key={`image-${index}`}
+                  className="flex-shrink-0 w-70 h-52 bg-gray-50 overflow-hidden relative border border-gray-200"
+                >
+                  {imageLoading[index] && (
+                    <div className="absolute inset-0 bg-gray-200 animate-pulse">
+                      <div className="absolute inset-0 bg-gradient-to-r from-gray-200 via-gray-100 to-gray-200 animate-shimmer"></div>
+                    </div>
+                  )}
+                  <img
+                    src={image}
+                    alt={`Gallery image ${(index % images.length) + 1}`}
+                    className={`w-full h-full object-cover select-none transition-opacity duration-300 ${
+                      imageLoading[index] ? 'opacity-0' : 'opacity-100'
+                    }`}
+                    onLoadStart={() => handleImageStart(index)}
+                    onLoad={() => handleImageLoad(index)}
+                    onError={() => handleImageError(index)}
+                    draggable={false}
+                    loading={index < images.length ? 'eager' : 'lazy'}
+                    decoding="async"
+                    fetchPriority={index < 3 ? 'high' : 'auto'}
+                  />
+                </div>
+              )
+            ))}
+          </div>
         </div>
-      </div>
+      </section>
 
       <style jsx>{`
         .scrollbar-hide::-webkit-scrollbar {
@@ -161,6 +165,6 @@ export default function ImageSlider({ images }: ImageSliderProps) {
           animation: shimmer 2s infinite;
         }
       `}</style>
-    </section>
+    </>
   );
 }
