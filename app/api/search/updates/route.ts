@@ -52,14 +52,15 @@ interface UpdateRecord {
 interface DebugInfo {
   event_fetch_time: number;
   google_search_time: number;
-  articles_found: number;
-  articles_after_last_update: number;
   web_fetch_time: number;
   groq_analysis_time: number;
   database_insert_time: number;
   total_processing_time: number;
+  search_results_count: number;
+  filtered_results_count: number;
   last_updated_date: string | null;
   days_since_last_update: number;
+  has_new_articles: boolean;
   dates_scanned: number;
   links_per_date: Record<string, number>;
 }
@@ -173,14 +174,15 @@ async function processEventUpdate(event_id: string, apiKey: string) {
   const debugInfo: DebugInfo = {
     event_fetch_time: 0,
     google_search_time: 0,
-    articles_found: 0,
-    articles_after_last_update: 0,
     web_fetch_time: 0,
     groq_analysis_time: 0,
     database_insert_time: 0,
     total_processing_time: 0,
+    search_results_count: 0,
+    filtered_results_count: 0,
     last_updated_date: null,
     days_since_last_update: 0,
+    has_new_articles: false,
     dates_scanned: 0,
     links_per_date: {}
   };
@@ -235,33 +237,33 @@ async function processEventUpdate(event_id: string, apiKey: string) {
     debugInfo.last_updated_date = lastUpdated.toISOString();
     debugInfo.days_since_last_update = Math.ceil((Date.now() - lastUpdated.getTime()) / (1000 * 60 * 60 * 24));
 
-    // Step 1: Search for articles
     const googleSearchStart = Date.now();
     const searchResults = await searchGoogleForUpdates(event.query, lastUpdated);
     debugInfo.google_search_time = Date.now() - googleSearchStart;
-    debugInfo.articles_found = searchResults.length;
+    debugInfo.search_results_count = searchResults.length;
 
-    // Step 2: Filter articles published AFTER last_updated
+    // Filter articles published AFTER last update date
     const filteredResults = searchResults.filter(result => {
       const articleDate = parseArticleDate(result.publishedDate);
       return isArticleNewer(articleDate, lastUpdated);
     });
 
-    debugInfo.articles_after_last_update = filteredResults.length;
+    debugInfo.filtered_results_count = filteredResults.length;
+    debugInfo.has_new_articles = filteredResults.length > 0;
 
-    // Step 3: If no new articles found, return early
+    // If no new articles, return early - no analysis needed
     if (filteredResults.length === 0) {
       debugInfo.total_processing_time = Date.now() - startTime;
       return NextResponse.json({ 
         message: 'No new articles found after last update date',
         last_updated: lastUpdated.toISOString(),
-        total_articles_searched: searchResults.length,
-        articles_after_last_update: 0,
+        total_search_results: searchResults.length,
+        new_articles_found: 0,
         debug: debugInfo
       });
     }
 
-    // Step 4: Select limited links per date
+    // Select limited links per date
     const selectedResults = selectLinksToScan(filteredResults, 3);
     
     // Track dates and links per date
@@ -274,7 +276,6 @@ async function processEventUpdate(event_id: string, apiKey: string) {
     debugInfo.dates_scanned = dateCount.size;
     debugInfo.links_per_date = Object.fromEntries(dateCount);
 
-    // Step 5: Fetch full content for selected articles
     const webFetchStart = Date.now();
     const resultsWithContent = await Promise.all(
       selectedResults.map(async (result) => ({
@@ -284,22 +285,22 @@ async function processEventUpdate(event_id: string, apiKey: string) {
     );
     debugInfo.web_fetch_time = Date.now() - webFetchStart;
 
-    // Step 6: Analyze with Groq (only if new articles exist)
+    // Since we have new articles, analyze them to extract what happened
     const groqAnalysisStart = Date.now();
     const analysis = await analyzeWithGroq(resultsWithContent, event.query, lastUpdated.toISOString());
     debugInfo.groq_analysis_time = Date.now() - groqAnalysisStart;
     
+    // If analysis failed or returned no updates, return error
     if (!analysis || analysis.updates.length === 0) {
       debugInfo.total_processing_time = Date.now() - startTime;
       return NextResponse.json({ 
-        message: 'Articles found but no meaningful updates extracted',
-        last_updated: lastUpdated.toISOString(),
-        articles_analyzed: selectedResults.length,
+        error: 'Failed to analyze new articles',
+        message: 'Analysis returned no updates despite having new articles',
+        new_articles_found: selectedResults.length,
         debug: debugInfo
-      });
+      }, { status: 500 });
     }
 
-    // Step 7: Insert updates into database
     const dbInsertStart = Date.now();
     
     const updateRecords: UpdateRecord[] = analysis.updates.map(update => ({
@@ -339,7 +340,7 @@ async function processEventUpdate(event_id: string, apiKey: string) {
       console.error('Error updating events table:', updateError);
     }
 
-    // Update event_details sources
+    // Update event_details sources (keep track of source links)
     const newSources = selectedResults.map(r => r.link);
     const { data: existingDetails } = await supabase
       .from('event_details')
@@ -371,10 +372,9 @@ async function processEventUpdate(event_id: string, apiKey: string) {
       message: `${analysis.updates.length} updates created successfully`,
       status: analysis.status,
       updates: updateRecords,
-      analysis: analysis,
-      articles_processed: selectedResults.length,
-      total_articles_searched: searchResults.length,
-      updates_by_date: analysis.updates.length,
+      new_articles_processed: selectedResults.length,
+      total_search_results: searchResults.length,
+      updates_created: analysis.updates.length,
       new_sources_added: newSources.length,
       debug: debugInfo
     });
@@ -505,11 +505,9 @@ async function analyzeWithGroq(
 
     const analysisResult = JSON.parse(completion.choices[0].message.content);
     
+    // Validate that we have updates
     if (!analysisResult.updates || analysisResult.updates.length === 0) {
-      return { 
-        status: analysisResult.status || 'Injustice',
-        updates: [] 
-      };
+      return null;
     }
 
     const validUpdates = analysisResult.updates.filter((update: DateUpdate) => 
@@ -517,10 +515,7 @@ async function analyzeWithGroq(
     );
 
     if (validUpdates.length === 0) {
-      return { 
-        status: analysisResult.status || 'Injustice',
-        updates: [] 
-      };
+      return null;
     }
 
     return { 

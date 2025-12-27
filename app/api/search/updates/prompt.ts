@@ -11,37 +11,53 @@ export function buildUpdateAnalysisPrompt(
   searchResults: GoogleSearchResult[], 
   lastUpdateDate: string
 ): string {
-  return `Analyze news articles about "${query}" published after ${lastUpdateDate}.
+  
+  return `You are analyzing case developments for: "${query}"
 
-Extract meaningful updates and return ONLY valid JSON:
+Last Update Date: ${lastUpdateDate}
 
+Your task: Extract what happened in the case from the news articles below. All articles are AFTER ${lastUpdateDate}, so analyze and summarize the developments.
+
+RESPONSE FORMAT (JSON only):
 {
-  "status": "Justice" or "Injustice",
+  "status": "Justice/Injustice",
   "updates": [
     {
       "date": "YYYY-MM-DD",
-      "title": "Specific development (not case name)",
-      "description": "Concise summary with key facts, numbers, names. Use **keyword** once for most important term."
+      "title": "Specific development description",
+      "description": "Complete summary with key facts, numbers, names. Use **keyword** once for most important term."
     }
   ]
 }
 
 RULES:
-- One update per date, sorted chronologically (oldest→newest)
-- DATE: YYYY-MM-DD format from article publication date
-- TITLE: Describe the event/development, be specific and newsworthy
-- DESCRIPTION: Complete facts, include data/numbers/names, **bold** once, escape quotes with \, no speculation
-- STATUS: Overall outcome - "Justice" or "Injustice"
-- Skip articles without meaningful new information
+1. DATE: Use article publication date in YYYY-MM-DD format
+2. GROUPING: Combine articles from same date into one update
+3. SORT: Chronological order (oldest → newest)
+4. TITLE: Describe what happened (not case name). Be specific and newsworthy
+5. DESCRIPTION:
+   - Include all key facts, numbers, names, outcomes
+   - Use **bold** ONCE on 2-3 word key phrase
+   - Escape quotes with backslash
+   - Be concise but complete
+6. STATUS: 
+   - "Justice" if outcome favors victims/accountability
+   - "Injustice" if outcome favors perpetrators/no accountability
+7. NO speculation - only facts from articles
 
-LAST UPDATE: ${lastUpdateDate}
+---
 
-ARTICLES:
-${searchResults.map((result, index) => 
-  `${index + 1}. ${result.title}
-${result.snippet}
-Published: ${result.publishedDate || 'N/A'}
-Full Content: ${result.fullContent || 'N/A'}
----`
-).join('\n')}`;
+NEWS ARTICLES:
+
+${searchResults.map((result, index) => `
+[${index + 1}]
+Title: ${result.title}
+Date: ${result.publishedDate || 'Date unavailable'}
+Snippet: ${result.snippet}
+
+Full Content:
+${result.fullContent || 'Content not available'}
+`).join('\n---\n')}
+
+Return valid JSON only. No preamble.`;
 }
