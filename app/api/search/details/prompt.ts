@@ -3,7 +3,8 @@ export function buildAnalysisPrompt(query: string, articleContent: string, topSn
 
 Return ONLY valid JSON (no markdown, no code blocks, no text). Start with { and end with }.
 
-GLOBAL FORMATTING RULES:
+GLOBAL RULES:
+- Write it with an Indian Perspective
 - Use exact numbers, complete names/titles, full statute sections, exact currency symbols (₹, Rs, $), precise timestamps
 - Escape all quotes with backslash
 - Include ONLY information available in sources - skip unavailable fields

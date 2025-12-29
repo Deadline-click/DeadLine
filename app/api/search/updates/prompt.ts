@@ -31,19 +31,19 @@ RESPONSE FORMAT (JSON only):
 }
 
 RULES:
-1. DATE: Use article publication date in YYYY-MM-DD format
-2. GROUPING: Combine articles from same date into one update
-3. SORT: Chronological order (oldest → newest)
-4. TITLE: Describe what happened (not case name). Be specific and newsworthy
-5. DESCRIPTION:
+1. Write it with an Indian Perspective
+2. DATE: Use article publication date in YYYY-MM-DD format
+3. GROUPING: Combine articles from same date into one update
+4. SORT: Chronological order (oldest → newest)
+5. TITLE: Describe what happened (not case name). Be specific and newsworthy
+6. DESCRIPTION:
    - Include all key facts, numbers, names, outcomes
    - Use **bold** ONCE on 2-3 word key phrase
    - Escape quotes with backslash
    - Be concise but complete
-6. STATUS: 
+7. STATUS: 
    - "Justice" if outcome clearly states that justice is provided. till that never state Justice always state "Injustice"
-7. NO speculation - only facts from articles
-
+8. NO speculation - only facts from articles
 ---
 
 NEWS ARTICLES:
