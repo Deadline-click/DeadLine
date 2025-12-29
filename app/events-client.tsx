@@ -52,6 +52,7 @@ export function EventsClient({ initialEvents }: EventsClientProps) {
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
   const [isInitializing, setIsInitializing] = useState(true);
+  const [clickedEventId, setClickedEventId] = useState<number | null>(null);
   const router = useRouter();
   const ITEMS_PER_PAGE = 30;
   const categories = ['All', 'Justice', 'Injustice'];
@@ -126,7 +127,10 @@ export function EventsClient({ initialEvents }: EventsClientProps) {
   const handleEventClick = useCallback((eventId: number, e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    router.push(`/event/${eventId}`);
+    setClickedEventId(eventId);
+    setTimeout(() => {
+      router.push(`/event/${eventId}`);
+    }, 150);
   }, [router]);
 
   return (
@@ -177,13 +181,18 @@ export function EventsClient({ initialEvents }: EventsClientProps) {
                 <article 
                   key={event.event_id} 
                   onClick={(e) => handleEventClick(event.event_id, e)}
-                  className="group cursor-pointer"
+                  className={`group cursor-pointer transition-opacity duration-150 ${
+                    clickedEventId === event.event_id ? 'opacity-60' : ''
+                  }`}
                   role="button"
                   tabIndex={0}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' || e.key === ' ') {
                       e.preventDefault();
-                      router.push(`/event/${event.event_id}`);
+                      setClickedEventId(event.event_id);
+                      setTimeout(() => {
+                        router.push(`/event/${event.event_id}`);
+                      }, 150);
                     }
                   }}
                 >
@@ -194,7 +203,7 @@ export function EventsClient({ initialEvents }: EventsClientProps) {
                       loading={index < 9 ? 'eager' : 'lazy'}
                       decoding="async"
                       fetchPriority={index < 3 ? 'high' : 'auto'}
-                      className="w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all duration-500 pointer-events-none"
+                      className="w-full h-full object-cover grayscale md:group-hover:grayscale-0 group-active:grayscale-0 transition-all duration-500 pointer-events-none"
                       onError={(e) => {
                         const target = e.target as HTMLImageElement;
                         target.src = '/api/placeholder/400/300';

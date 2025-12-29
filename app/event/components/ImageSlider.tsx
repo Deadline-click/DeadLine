@@ -8,6 +8,7 @@ interface ImageSliderProps {
 
 export default function ImageSlider({ images }: ImageSliderProps) {
   const [imageStates, setImageStates] = useState<Record<number, { loaded: boolean; error: boolean }>>({});
+  const [activeImageIndex, setActiveImageIndex] = useState<number | null>(null);
   const sliderRef = useRef<HTMLDivElement>(null);
   const observerRef = useRef<IntersectionObserver | null>(null);
 
@@ -110,6 +111,10 @@ export default function ImageSlider({ images }: ImageSliderProps) {
     }));
   };
 
+  const handleImageClick = (index: number) => {
+    setActiveImageIndex(prev => prev === index ? null : index);
+  };
+
   if (!images || images.length === 0) {
     return (
       <section className="mb-6">
@@ -144,6 +149,7 @@ export default function ImageSlider({ images }: ImageSliderProps) {
               const state = imageStates[index] || { loaded: false, error: false };
               const isEager = index < images.length;
               const isPriority = index < 3;
+              const isActive = activeImageIndex === index;
               
               if (state.error) {
                 return null;
@@ -152,7 +158,8 @@ export default function ImageSlider({ images }: ImageSliderProps) {
               return (
                 <div
                   key={`image-${index}`}
-                  className="flex-shrink-0 w-70 h-52 bg-gray-50 overflow-hidden relative border border-gray-200 group"
+                  className="flex-shrink-0 w-70 h-52 bg-gray-50 overflow-hidden relative border border-gray-200 group cursor-pointer"
+                  onClick={() => handleImageClick(index)}
                 >
                   {!state.loaded && (
                     <div className="absolute inset-0 bg-gray-200">
@@ -163,7 +170,9 @@ export default function ImageSlider({ images }: ImageSliderProps) {
                     src={isEager ? image : undefined}
                     data-src={!isEager ? image : undefined}
                     alt={`Gallery image ${(index % images.length) + 1}`}
-                    className={`w-full h-full object-cover select-none transition-all duration-300 grayscale group-hover:grayscale-0 ${
+                    className={`w-full h-full object-cover select-none transition-all duration-300 ${
+                      isActive ? '' : 'grayscale md:group-hover:grayscale-0'
+                    } ${
                       state.loaded ? 'opacity-100' : 'opacity-0'
                     }`}
                     onLoad={() => handleImageLoad(index)}
