@@ -475,13 +475,21 @@ export default async function EventPage({
         </main>
 
         <footer className="bg-black text-white py-6 border-t-2 border-black">
-          <div className="max-w-full mx-auto px-6 text-center">
-            <h2 className="text-lg font-black tracking-tight uppercase mb-2 text-white" style={{ fontFamily: 'Inter, system-ui, sans-serif' }}>
-              DEADLINE
-            </h2>
-            <p className="text-white text-sm font-mono">
-              A Museum of temporary truths.
-            </p>
+          <div className="max-w-full mx-auto px-6">
+            <div className="text-center mb-4">
+              <h2 className="text-lg font-black tracking-tight uppercase mb-2 text-white" style={{ fontFamily: 'Inter, system-ui, sans-serif' }}>
+                DEADLINE
+              </h2>
+              <p className="text-white text-sm font-mono">
+                A Museum of temporary truths.
+              </p>
+            </div>
+            <nav className="flex justify-center space-x-6">
+              <a href="/about" className="text-xs font-normal text-white hover:underline transition-all duration-300 font-mono">About</a>
+              <a href="/report" className="text-xs font-normal text-white hover:underline transition-all duration-300 font-mono">Report</a>
+              <a href="/policies" className="text-xs font-normal text-white hover:underline transition-all duration-300 font-mono">Policies</a>
+              <a href="/donate" className="text-xs font-normal text-white hover:underline transition-all duration-300 font-mono">Donate</a>
+            </nav>
           </div>
         </footer>
       </div>

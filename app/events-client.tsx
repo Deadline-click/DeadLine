@@ -123,7 +123,9 @@ export function EventsClient({ initialEvents }: EventsClientProps) {
     return 'bg-black text-white';
   }, []);
 
-  const handleEventClick = useCallback((eventId: number) => {
+  const handleEventClick = useCallback((eventId: number, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
     router.push(`/event/${eventId}`);
   }, [router]);
 
@@ -174,8 +176,16 @@ export function EventsClient({ initialEvents }: EventsClientProps) {
               {displayedEvents.map((event, index) => (
                 <article 
                   key={event.event_id} 
-                  onClick={() => handleEventClick(event.event_id)}
+                  onClick={(e) => handleEventClick(event.event_id, e)}
                   className="group cursor-pointer"
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      router.push(`/event/${event.event_id}`);
+                    }
+                  }}
                 >
                   <div className="relative h-64 mb-6 overflow-hidden bg-gray-100">
                     <img
@@ -184,7 +194,7 @@ export function EventsClient({ initialEvents }: EventsClientProps) {
                       loading={index < 9 ? 'eager' : 'lazy'}
                       decoding="async"
                       fetchPriority={index < 3 ? 'high' : 'auto'}
-                      className="w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all duration-500"
+                      className="w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all duration-500 pointer-events-none"
                       onError={(e) => {
                         const target = e.target as HTMLImageElement;
                         target.src = '/api/placeholder/400/300';

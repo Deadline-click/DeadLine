@@ -152,7 +152,7 @@ export default function ImageSlider({ images }: ImageSliderProps) {
               return (
                 <div
                   key={`image-${index}`}
-                  className="flex-shrink-0 w-70 h-52 bg-gray-50 overflow-hidden relative border border-gray-200"
+                  className="flex-shrink-0 w-70 h-52 bg-gray-50 overflow-hidden relative border border-gray-200 group"
                 >
                   {!state.loaded && (
                     <div className="absolute inset-0 bg-gray-200">
@@ -163,7 +163,7 @@ export default function ImageSlider({ images }: ImageSliderProps) {
                     src={isEager ? image : undefined}
                     data-src={!isEager ? image : undefined}
                     alt={`Gallery image ${(index % images.length) + 1}`}
-                    className={`w-full h-full object-cover select-none transition-opacity duration-300 ${
+                    className={`w-full h-full object-cover select-none transition-all duration-300 grayscale group-hover:grayscale-0 ${
                       state.loaded ? 'opacity-100' : 'opacity-0'
                     }`}
                     onLoad={() => handleImageLoad(index)}
