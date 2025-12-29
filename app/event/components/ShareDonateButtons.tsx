@@ -80,7 +80,7 @@ export default function ShareDonateButtons({
       <div className="relative flex items-center space-x-3">
         <button
           onClick={handleShare}
-          className="bg-white text-black p-2.5 rounded-lg hover:bg-gray-100 transition-all shadow-lg hover:shadow-xl"
+          className="p-2.5 hover:opacity-80 transition-opacity"
           aria-label="Share"
         >
           <svg 
@@ -89,7 +89,7 @@ export default function ShareDonateButtons({
             height="20" 
             viewBox="0 0 24 24" 
             fill="none" 
-            stroke="currentColor" 
+            stroke="white" 
             strokeWidth="2" 
             strokeLinecap="round" 
             strokeLinejoin="round"
@@ -104,7 +104,7 @@ export default function ShareDonateButtons({
 
         <button
           onClick={handleDonate}
-          className="bg-white text-black p-2.5 rounded-lg hover:bg-gray-100 transition-all shadow-lg hover:shadow-xl"
+          className="p-2.5 hover:opacity-80 transition-opacity"
           aria-label="Donate"
         >
           <svg 
@@ -113,7 +113,7 @@ export default function ShareDonateButtons({
             height="20" 
             viewBox="0 0 24 24" 
             fill="none" 
-            stroke="currentColor" 
+            stroke="white" 
             strokeWidth="2" 
             strokeLinecap="round" 
             strokeLinejoin="round"
@@ -125,18 +125,18 @@ export default function ShareDonateButtons({
 
       {showShareMenu && (
         <div 
-          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[100] animate-fadeIn"
+          className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-[100] animate-fadeIn backdrop-blur-sm"
           onClick={() => setShowShareMenu(false)}
         >
           <div 
-            className="bg-white rounded-xl shadow-2xl p-6 max-w-sm w-full mx-4 animate-slideUp"
+            className="bg-white shadow-2xl p-6 max-w-sm w-full mx-4 animate-slideUp"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex justify-between items-center mb-4 pb-3 border-b border-gray-200">
+            <div className="flex justify-between items-center mb-4 pb-3 border-b-2 border-black">
               <h3 className="text-sm font-bold text-black uppercase tracking-wider font-mono">Share</h3>
               <button 
                 onClick={() => setShowShareMenu(false)} 
-                className="text-black hover:bg-gray-100 rounded p-1 transition-colors"
+                className="text-black hover:bg-gray-100 p-1 transition-colors"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <line x1="18" y1="6" x2="6" y2="18"/>
@@ -147,7 +147,7 @@ export default function ShareDonateButtons({
             <div className="grid grid-cols-3 gap-4 mb-4">
               <button 
                 onClick={shareOnWhatsApp}
-                className="flex flex-col items-center justify-center p-3 hover:bg-gray-100 rounded-lg transition-colors"
+                className="flex flex-col items-center justify-center p-3 hover:bg-gray-100 transition-colors"
                 aria-label="Share on WhatsApp"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="black" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
@@ -157,7 +157,7 @@ export default function ShareDonateButtons({
               </button>
               <button 
                 onClick={shareOnTwitter}
-                className="flex flex-col items-center justify-center p-3 hover:bg-gray-100 rounded-lg transition-colors"
+                className="flex flex-col items-center justify-center p-3 hover:bg-gray-100 transition-colors"
                 aria-label="Share on X"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="black" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
@@ -168,7 +168,7 @@ export default function ShareDonateButtons({
               </button>
               <button 
                 onClick={shareOnLinkedIn}
-                className="flex flex-col items-center justify-center p-3 hover:bg-gray-100 rounded-lg transition-colors"
+                className="flex flex-col items-center justify-center p-3 hover:bg-gray-100 transition-colors"
                 aria-label="Share on LinkedIn"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="black" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
@@ -180,7 +180,7 @@ export default function ShareDonateButtons({
               </button>
               <button 
                 onClick={shareOnFacebook}
-                className="flex flex-col items-center justify-center p-3 hover:bg-gray-100 rounded-lg transition-colors"
+                className="flex flex-col items-center justify-center p-3 hover:bg-gray-100 transition-colors"
                 aria-label="Share on Facebook"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="black" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
@@ -190,7 +190,7 @@ export default function ShareDonateButtons({
               </button>
               <button 
                 onClick={shareViaEmail}
-                className="flex flex-col items-center justify-center p-3 hover:bg-gray-100 rounded-lg transition-colors"
+                className="flex flex-col items-center justify-center p-3 hover:bg-gray-100 transition-colors"
                 aria-label="Share via Email"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="black" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
@@ -202,7 +202,7 @@ export default function ShareDonateButtons({
               <button 
                 id="copy-btn"
                 onClick={copyToClipboard}
-                className="flex flex-col items-center justify-center p-3 hover:bg-gray-100 rounded-lg transition-colors"
+                className="flex flex-col items-center justify-center p-3 hover:bg-gray-100 transition-colors"
                 aria-label="Copy Link"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="black" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
@@ -218,18 +218,18 @@ export default function ShareDonateButtons({
 
       {showQR && (
         <div 
-          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[100] animate-fadeIn"
+          className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-[100] animate-fadeIn backdrop-blur-sm"
           onClick={() => setShowQR(false)}
         >
           <div 
-            className="bg-white rounded-xl shadow-2xl p-6 max-w-sm w-full mx-4 animate-slideUp"
+            className="bg-white shadow-2xl p-6 max-w-sm w-full mx-4 animate-slideUp"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex justify-between items-center mb-4 pb-3 border-b border-gray-200">
+            <div className="flex justify-between items-center mb-4 pb-3 border-b-2 border-black">
               <h3 className="text-sm font-bold text-black uppercase tracking-wider font-mono">Donate</h3>
               <button 
                 onClick={() => setShowQR(false)} 
-                className="text-black hover:bg-gray-100 rounded p-1 transition-colors"
+                className="text-black hover:bg-gray-100 p-1 transition-colors"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <line x1="18" y1="6" x2="6" y2="18"/>
@@ -239,14 +239,14 @@ export default function ShareDonateButtons({
             </div>
             <div className="flex justify-center mb-4">
               {!qrLoaded && (
-                <div className="w-60 h-60 bg-gray-200 animate-pulse flex items-center justify-center rounded-lg">
-                  <div className="w-40 h-40 bg-gray-300 rounded"></div>
+                <div className="w-60 h-60 bg-gray-200 animate-pulse flex items-center justify-center">
+                  <div className="w-40 h-40 bg-gray-300"></div>
                 </div>
               )}
               <img 
                 src={`https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodeURIComponent(upiLink)}`}
                 alt="UPI QR Code"
-                className={`w-60 h-60 rounded-lg ${qrLoaded ? 'block' : 'hidden'}`}
+                className={`w-60 h-60 ${qrLoaded ? 'block' : 'hidden'}`}
                 onLoad={() => setQrLoaded(true)}
               />
             </div>
