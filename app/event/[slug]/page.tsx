@@ -113,14 +113,24 @@ async function getEventDetails(slug: string): Promise<EventDetails | null> {
 
     console.log('[getEventDetails] Response status:', response.status);
 
+    // Read the response as text first to debug
+    const responseText = await response.text();
+    console.log('[getEventDetails] Response body (first 500 chars):', responseText.substring(0, 500));
+
     if (!response.ok) {
       console.error('[getEventDetails] Response not OK:', response.status, response.statusText);
-      const text = await response.text();
-      console.error('[getEventDetails] Response body:', text);
+      console.error('[getEventDetails] Response body:', responseText);
       return null;
     }
 
-    const result: EventDetailsResponse = await response.json();
+    // Try to parse the JSON
+    let result: EventDetailsResponse;
+    try {
+      result = JSON.parse(responseText);
+    } catch (parseError) {
+      console.error('[getEventDetails] JSON parse error. Response was:', responseText);
+      throw parseError;
+    }
     console.log('[getEventDetails] Success:', result.success, 'Has data:', !!result.data);
     
     if (!result.success || !result.data) {
