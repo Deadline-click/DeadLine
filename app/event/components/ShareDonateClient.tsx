@@ -79,23 +79,23 @@ export default function ShareDonateClient({
 
   return (
     <>
-      <div className="relative flex items-center space-x-3">
+      <div className="relative flex items-center space-x-4">
         <button
           onClick={handleShare}
-          className="p-2.5 bg-white hover:bg-black border border-black transition-all duration-200 group shadow-sm hover:shadow-md"
+          className="p-0 bg-transparent hover:opacity-60 transition-all duration-200 group"
           aria-label="Share"
         >
           <svg 
             xmlns="http://www.w3.org/2000/svg" 
-            width="20" 
-            height="20" 
+            width="24" 
+            height="24" 
             viewBox="0 0 24 24" 
             fill="none" 
             stroke="currentColor" 
             strokeWidth="2" 
             strokeLinecap="round" 
             strokeLinejoin="round"
-            className="stroke-black group-hover:stroke-white transition-all"
+            className="stroke-black transition-all"
           >
             <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/>
             <polyline points="16 6 12 2 8 6"/>
@@ -105,20 +105,20 @@ export default function ShareDonateClient({
 
         <button
           onClick={handleDonate}
-          className="p-2.5 bg-white hover:bg-black border border-black transition-all duration-200 group shadow-sm hover:shadow-md"
+          className="p-0 bg-transparent hover:opacity-60 transition-all duration-200 group"
           aria-label="Donate"
         >
           <svg 
             xmlns="http://www.w3.org/2000/svg" 
-            width="20" 
-            height="20" 
+            width="24" 
+            height="24" 
             viewBox="0 0 24 24" 
             fill={isDonateActive ? "black" : "none"}
             stroke="currentColor"
             strokeWidth="2" 
             strokeLinecap="round" 
             strokeLinejoin="round"
-            className={`transition-all ${isDonateActive ? 'stroke-black group-hover:stroke-white group-hover:fill-white' : 'stroke-black group-hover:stroke-white'}`}
+            className="stroke-black transition-all"
           >
             <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
           </svg>
