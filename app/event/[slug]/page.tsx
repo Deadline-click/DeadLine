@@ -97,6 +97,8 @@ async function getEventDetails(slug: string): Promise<EventDetails | null> {
     }
 
     const url = `${baseUrl}/api/get/details?slug=${encodeURIComponent(slug)}&api_key=${apiKey}`;
+    
+    console.log('[getEventDetails] Fetching:', url);
 
     const response = await fetch(url, {
       next: { 
@@ -109,15 +111,20 @@ async function getEventDetails(slug: string): Promise<EventDetails | null> {
       cache: 'force-cache'
     });
 
+    console.log('[getEventDetails] Response status:', response.status);
+
     if (!response.ok) {
       console.error('[getEventDetails] Response not OK:', response.status, response.statusText);
+      const text = await response.text();
+      console.error('[getEventDetails] Response body:', text);
       return null;
     }
 
     const result: EventDetailsResponse = await response.json();
+    console.log('[getEventDetails] Success:', result.success, 'Has data:', !!result.data);
     
     if (!result.success || !result.data) {
-      console.error('[getEventDetails] Invalid response structure');
+      console.error('[getEventDetails] Invalid response structure:', result);
       return null;
     }
 
@@ -253,17 +260,19 @@ function generateDynamicKeywords(eventDetails: EventDetails): string[] {
   return keywords;
 }
 
-export async function generateMetadata({ 
-  params 
-}: { 
-  params: { slug: string };
-}): Promise<Metadata> {
-  const resolvedParams = await Promise.resolve(params);
-  const slug = resolvedParams.slug;
+type Props = {
+  params: Promise<{ slug: string }>;
+};
+
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const { slug } = await params;
+  
+  console.log('[generateMetadata] slug:', slug);
   
   const eventDetails = await getEventDetails(slug);
   
   if (!eventDetails) {
+    console.log('[generateMetadata] No event details found for slug:', slug);
     return {
       title: 'Event Not Found - DEADLINE',
       description: 'The requested event could not be found.',
@@ -346,23 +355,24 @@ export async function generateMetadata({
   };
 }
 
-export default async function EventPage({ 
-  params 
-}: { 
-  params: { slug: string };
-}) {
-  const resolvedParams = await Promise.resolve(params);
-  const slug = resolvedParams.slug;
+export default async function EventPage({ params }: Props) {
+  const { slug } = await params;
+  
+  console.log('[EventPage] Rendering slug:', slug);
   
   if (!slug) {
+    console.log('[EventPage] No slug provided');
     notFound();
   }
 
   const eventDetails = await getEventDetails(slug);
 
   if (!eventDetails) {
+    console.log('[EventPage] Event details not found, calling notFound()');
     notFound();
   }
+
+  console.log('[EventPage] Event found:', eventDetails.event_id, eventDetails.headline);
 
   const [eventUpdates, sourcesWithTitles] = await Promise.all([
     getEventUpdates(eventDetails.event_id),
