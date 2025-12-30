@@ -228,6 +228,31 @@ function truncateText(text: string, maxLength: number): string {
   return stripped.substring(0, maxLength).trim() + '...';
 }
 
+function generateDynamicKeywords(eventDetails: EventDetails): string[] {
+  const keywords = [
+    'forgotten news',
+    'abandoned case',
+    'justice delayed',
+    'collective amnesia',
+    eventDetails.location,
+  ];
+
+  // Add victim-related keywords
+  if (eventDetails.victims?.individuals?.length) {
+    keywords.push('victim advocacy', 'justice for victims');
+  }
+  if (eventDetails.victims?.groups?.length) {
+    keywords.push('marginalized communities', 'systemic injustice');
+  }
+
+  // Add accused-related keywords
+  if (eventDetails.accused?.individuals?.length || eventDetails.accused?.organizations?.length) {
+    keywords.push('accountability', 'alleged perpetrators');
+  }
+
+  return keywords;
+}
+
 export async function generateMetadata({ 
   params 
 }: { 
@@ -245,7 +270,7 @@ export async function generateMetadata({
   }
 
   const title = eventDetails.headline;
-  const description = truncateText(eventDetails.details?.overview || '', 160);
+  const description = truncateText(eventDetails.details?.overview || '', 155);
   const imageUrl = eventDetails.images && eventDetails.images.length > 0 
     ? eventDetails.images[0] 
     : `${process.env.NEXT_PUBLIC_BASE_URL}/og-default.png`;
@@ -253,10 +278,12 @@ export async function generateMetadata({
   const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://deadline.com';
   const url = `${baseUrl}/event/${id}`;
 
+  const keywords = generateDynamicKeywords(eventDetails);
+
   return {
-    title: `${title} | DEADLINE`,
-    description,
-    keywords: ['news', 'investigation', 'deadline', eventDetails.location, 'events'],
+    title: `${title} | DEADLINE - They Cared. Then They Forgot.`,
+    description: `${description} Documented on DEADLINE - tracking stories the world abandoned.`,
+    keywords,
     authors: [{ name: 'DEADLINE' }],
     creator: 'DEADLINE',
     publisher: 'DEADLINE',
@@ -265,15 +292,15 @@ export async function generateMetadata({
       type: 'article',
       url,
       title: `${title} | DEADLINE`,
-      description,
-      siteName: 'DEADLINE',
+      description: `${description} A story the world forgot.`,
+      siteName: 'DEADLINE - They Cared. Then They Forgot.',
       locale: 'en_US',
       images: [
         {
           url: imageUrl,
           width: 1200,
           height: 630,
-          alt: eventDetails.headline,
+          alt: `${eventDetails.headline} - DEADLINE documentation`,
           type: 'image/jpeg',
         },
       ],
@@ -283,7 +310,7 @@ export async function generateMetadata({
     twitter: {
       card: 'summary_large_image',
       title: `${title} | DEADLINE`,
-      description,
+      description: `${description} They cared. Then they forgot.`,
       images: [imageUrl],
       creator: '@deadline',
       site: '@deadline',
@@ -307,14 +334,13 @@ export async function generateMetadata({
     other: {
       'og:image:secure_url': imageUrl,
       'og:image:type': 'image/jpeg',
+      'article:published_time': eventDetails.created_at,
+      'article:modified_time': eventDetails.updated_at,
+      'article:tag': keywords.join(', '),
       'twitter:label1': 'Location',
       'twitter:data1': eventDetails.location,
-      'twitter:label2': 'Published',
-      'twitter:data2': new Date(eventDetails.created_at).toLocaleDateString('en-US', { 
-        year: 'numeric', 
-        month: 'long', 
-        day: 'numeric' 
-      }),
+      'twitter:label2': 'Status',
+      'twitter:data2': 'Forgotten by mainstream media',
     },
   };
 }
@@ -376,11 +402,12 @@ export default async function EventPage({
   const upiName = process.env.NEXT_PUBLIC_UPI_NAME || '';
   const upiNote = process.env.NEXT_PUBLIC_UPI_NOTE || '';
 
+  // Enhanced structured data for better AI/search engine understanding
   const structuredData = {
     '@context': 'https://schema.org',
     '@type': 'NewsArticle',
     headline: safeEventDetails.headline,
-    description: truncateText(safeEventDetails.details?.overview || '', 160),
+    description: truncateText(safeEventDetails.details?.overview || '', 155),
     image: imageUrl,
     datePublished: safeEventDetails.created_at,
     dateModified: safeEventDetails.updated_at,
@@ -388,6 +415,7 @@ export default async function EventPage({
       '@type': 'Organization',
       name: 'DEADLINE',
       url: baseUrl,
+      description: 'Documenting stories the world forgot - tracking abandoned justice cases and forgotten outrage'
     },
     publisher: {
       '@type': 'Organization',
@@ -402,7 +430,32 @@ export default async function EventPage({
       '@type': 'WebPage',
       '@id': `${baseUrl}/event/${id}`,
     },
+    about: {
+      '@type': 'Thing',
+      name: safeEventDetails.headline,
+      description: 'A documented case of forgotten justice and abandoned public interest'
+    },
+    keywords: generateDynamicKeywords(safeEventDetails).join(', '),
+    articleBody: safeEventDetails.details?.overview || '',
+    locationCreated: {
+      '@type': 'Place',
+      name: safeEventDetails.location
+    }
   };
+
+  // Generate SEO-friendly text content for AI crawlers
+  const seoTextContent = `
+    ${safeEventDetails.headline}. 
+    Location: ${safeEventDetails.location}. 
+    ${safeEventDetails.details?.overview || ''}
+    ${safeEventDetails.details?.keyPoints?.map(kp => `${kp.label}: ${kp.value}`).join('. ') || ''}
+    ${safeEventDetails.victims?.individuals?.map(v => `Victim: ${v.name}. ${v.summary}`).join('. ') || ''}
+    ${safeEventDetails.victims?.groups?.map(g => `Affected group: ${g.name}. ${g.summary}`).join('. ') || ''}
+    ${safeEventDetails.accused?.individuals?.map(a => `Accused: ${a.name}. ${a.summary}`).join('. ') || ''}
+    ${safeEventDetails.accused?.organizations?.map(o => `Organization: ${o.name}. ${o.summary}`).join('. ') || ''}
+    ${safeEventDetails.timeline?.map(t => `${t.date}: ${t.context}`).join('. ') || ''}
+    This is a story documented by DEADLINE - a platform tracking cases that received public attention, then were abandoned and forgotten by mainstream media and society.
+  `.trim().replace(/\s+/g, ' ');
 
   return (
     <>
@@ -411,68 +464,90 @@ export default async function EventPage({
         dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
       />
       
+      {/* Hidden SEO content for AI search engines */}
+      <div className="sr-only" aria-hidden="true">
+        <h1>{safeEventDetails.headline}</h1>
+        <p>{seoTextContent}</p>
+        <p>Keywords: {generateDynamicKeywords(safeEventDetails).join(', ')}</p>
+        <p>Published: {new Date(safeEventDetails.created_at).toLocaleDateString()}</p>
+        <p>Last Updated: {new Date(safeEventDetails.updated_at).toLocaleDateString()}</p>
+        <p>Location: {safeEventDetails.location}</p>
+        <p>DEADLINE - Museum of Temporary Truths - They Cared. Then They Forgot.</p>
+      </div>
+
       <div className="min-h-screen bg-gray-50 scroll-smooth" style={{ fontFamily: 'system-ui, -apple-system, sans-serif' }}>
         <header className="border-b border-black bg-white sticky top-0 z-50">
           <div className="max-w-full mx-auto px-6 py-3">
             <div className="flex items-center justify-between">
-              <a href="/" className="text-xl font-black tracking-tight uppercase text-black hover:opacity-80 transition-opacity" style={{ fontFamily: 'Inter, system-ui, sans-serif' }}>
+              <a 
+                href="/" 
+                className="text-xl font-black tracking-tight uppercase text-black hover:opacity-80 transition-opacity" 
+                style={{ fontFamily: 'Inter, system-ui, sans-serif' }}
+                title="DEADLINE - Home"
+                aria-label="DEADLINE Homepage"
+              >
                 DEADLINE
               </a>
-              <nav className="flex space-x-4">
-                <a href="#overview" className="text-xs font-normal text-black hover:underline transition-all duration-300 font-mono">Overview</a>
-                <a href="#sources" className="text-xs font-normal text-black hover:underline transition-all duration-300 font-mono">Sources</a>
+              <nav className="flex space-x-4" aria-label="Article navigation">
+                <a href="#overview" className="text-xs font-normal text-black hover:underline transition-all duration-300 font-mono" title="View event overview">Overview</a>
+                <a href="#sources" className="text-xs font-normal text-black hover:underline transition-all duration-300 font-mono" title="View sources and references">Sources</a>
               </nav>
             </div>
           </div>
         </header>
 
-        <section className="bg-black text-white py-8 border-b-2 border-black">
-          <div className="max-w-full mx-auto px-6">
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="px-3 py-1 bg-white text-black text-xs uppercase tracking-wider border border-black font-mono">
-                  {new Date(safeEventDetails.created_at || Date.now()).toLocaleDateString('en-US', { 
-                    year: 'numeric', 
-                    month: 'long', 
-                    day: 'numeric' 
-                  })}
-                </span>
-                <ShareDonateButtons 
-                  eventId={id}
-                  headline={safeEventDetails.headline}
-                  upiId={upiId}
-                  upiName={upiName}
-                  upiNote={upiNote}
-                  baseUrl={baseUrl}
+        <article>
+          <section className="bg-black text-white py-8 border-b-2 border-black">
+            <div className="max-w-full mx-auto px-6">
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <time 
+                    className="px-3 py-1 bg-white text-black text-xs uppercase tracking-wider border border-black font-mono"
+                    dateTime={safeEventDetails.created_at}
+                  >
+                    {new Date(safeEventDetails.created_at || Date.now()).toLocaleDateString('en-US', { 
+                      year: 'numeric', 
+                      month: 'long', 
+                      day: 'numeric' 
+                    })}
+                  </time>
+                  <ShareDonateButtons 
+                    eventId={id}
+                    headline={safeEventDetails.headline}
+                    upiId={upiId}
+                    upiName={upiName}
+                    upiNote={upiNote}
+                    baseUrl={baseUrl}
+                  />
+                </div>
+                <h1 
+                  className="text-2xl md:text-3xl font-bold leading-tight tracking-tight text-white text-justify" 
+                  style={{ fontFamily: 'Inter, system-ui, sans-serif' }}
+                >
+                  {safeEventDetails.headline}
+                </h1>
+                <p className="text-base text-white text-justify font-mono">
+                  <span itemProp="locationCreated">{safeEventDetails.location}</span>
+                </p>
+              </div>
+            </div>
+          </section>
+
+          <main className="max-w-full mx-auto px-6 py-8">
+            <div className="max-w-none">
+              <ImageSlider images={safeEventDetails.images} />
+              <div id="overview">
+                <EventDetailsComponent 
+                  eventDetails={safeEventDetails} 
+                  eventUpdates={safeEventUpdates} 
                 />
               </div>
-              <h1 
-                className="text-2xl md:text-3xl font-bold leading-tight tracking-tight text-white text-justify" 
-                style={{ fontFamily: 'Inter, system-ui, sans-serif' }}
-              >
-                {safeEventDetails.headline}
-              </h1>
-              <p className="text-base text-white text-justify font-mono">
-                {safeEventDetails.location}
-              </p>
+              <div id="sources">
+                <SourcesComponent sources={sourcesWithTitles} />
+              </div>
             </div>
-          </div>
-        </section>
-
-        <main className="max-w-full mx-auto px-6 py-8">
-          <div className="max-w-none">
-            <ImageSlider images={safeEventDetails.images} />
-            <div id="overview">
-              <EventDetailsComponent 
-                eventDetails={safeEventDetails} 
-                eventUpdates={safeEventUpdates} 
-              />
-            </div>
-            <div id="sources">
-              <SourcesComponent sources={sourcesWithTitles} />
-            </div>
-          </div>
-        </main>
+          </main>
+        </article>
 
         <footer className="bg-black text-white py-6 border-t-2 border-black">
           <div className="max-w-full mx-auto px-6">
@@ -481,14 +556,14 @@ export default async function EventPage({
                 DEADLINE
               </h2>
               <p className="text-white text-sm font-mono">
-                A Museum of temporary truths.
+                Museum of Temporary Truths
               </p>
             </div>
-            <nav className="flex justify-center space-x-6">
-              <a href="/about" className="text-xs font-normal text-white hover:underline transition-all duration-300 font-mono">About</a>
-              <a href="/report" className="text-xs font-normal text-white hover:underline transition-all duration-300 font-mono">Report</a>
-              <a href="/policies" className="text-xs font-normal text-white hover:underline transition-all duration-300 font-mono">Policies</a>
-              <a href="/donate" className="text-xs font-normal text-white hover:underline transition-all duration-300 font-mono">Donate</a>
+            <nav className="flex justify-center space-x-6" aria-label="Footer navigation">
+              <a href="/about" className="text-xs font-normal text-white hover:underline transition-all duration-300 font-mono" title="About DEADLINE - Our Mission">About</a>
+              <a href="/report" className="text-xs font-normal text-white hover:underline transition-all duration-300 font-mono" title="Report a Forgotten Story">Report</a>
+              <a href="/policies" className="text-xs font-normal text-white hover:underline transition-all duration-300 font-mono" title="Our Documentation Policies">Policies</a>
+              <a href="/donate" className="text-xs font-normal text-white hover:underline transition-all duration-300 font-mono" title="Support DEADLINE's Work">Donate</a>
             </nav>
           </div>
         </footer>

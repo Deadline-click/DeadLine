@@ -44,33 +44,32 @@ async function getEvents(): Promise<Event[]> {
   }
 }
 
-function truncateText(text: string, maxLength: number): string {
-  if (text.length <= maxLength) return text;
-  return text.substring(0, maxLength).trim() + '...';
-}
-
 export async function generateMetadata(): Promise<Metadata> {
-  const events = await getEvents();
-  const latestEvent = events.length > 0 ? events[0] : null;
-  
   const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://deadline.com';
   
-  const title = latestEvent 
-    ? `${latestEvent.title} | DEADLINE - Museum of Temporary Truths`
-    : 'DEADLINE - Museum of Temporary Truths';
+  const title = 'DEADLINE | Every Life Has a Voice';
   
-  const description = latestEvent && latestEvent.summary
-    ? truncateText(latestEvent.summary, 200)
-    : 'DEADLINE: A Museum of Temporary Truths. Documenting stories of justice and injustice as they unfold.';
+  const description = 'Tracking the stories nobody else remembers. From sewer deaths to forgotten injustices—we document the lives that mattered, then disappeared from headlines.';
   
-  const imageUrl = latestEvent && latestEvent.image_url
-    ? latestEvent.image_url
-    : `${baseUrl}/og-default.png`;
+  const imageUrl = `${baseUrl}/og-default.png`;
 
   return {
     title,
     description,
-    keywords: ['deadline', 'news', 'investigation', 'justice', 'injustice', 'events', 'stories'],
+    keywords: [
+      'sewer deaths',
+      'manual scavenging',
+      'forgotten victims',
+      'invisible workers',
+      'human rights documentation',
+      'social injustice',
+      'marginalized voices',
+      'untold stories',
+      'sanitation workers deaths',
+      'everyday heroes',
+      'unreported news',
+      'dignity in death'
+    ],
     authors: [{ name: 'DEADLINE' }],
     creator: 'DEADLINE',
     publisher: 'DEADLINE',
@@ -78,8 +77,8 @@ export async function generateMetadata(): Promise<Metadata> {
     openGraph: {
       type: 'website',
       url: baseUrl,
-      title,
-      description,
+      title: 'DEADLINE | Every Life Has a Voice',
+      description: 'Tracking the stories nobody else remembers. From sewer deaths to forgotten injustices—we document the lives that mattered, then disappeared from headlines.',
       siteName: 'DEADLINE',
       locale: 'en_US',
       images: [
@@ -87,15 +86,15 @@ export async function generateMetadata(): Promise<Metadata> {
           url: imageUrl,
           width: 1200,
           height: 630,
-          alt: latestEvent ? latestEvent.title : 'DEADLINE - Museum of Temporary Truths',
+          alt: 'DEADLINE - Every life has a voice',
           type: 'image/jpeg',
         },
       ],
     },
     twitter: {
       card: 'summary_large_image',
-      title,
-      description,
+      title: 'DEADLINE | Every Life Has a Voice',
+      description: 'Tracking the stories nobody else remembers. Sewer deaths. Forgotten workers. Lives that mattered.',
       images: [imageUrl],
       creator: '@deadline',
       site: '@deadline',
@@ -124,22 +123,22 @@ export const revalidate = 3600;
 
 export default async function DeadlineEventsPage() {
   const events = await getEvents();
-  const latestEvent = events.length > 0 ? events[0] : null;
   
   const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://deadline.com';
-  const imageUrl = latestEvent && latestEvent.image_url
-    ? latestEvent.image_url
-    : `${baseUrl}/og-default.png`;
-  const description = latestEvent && latestEvent.summary
-    ? truncateText(latestEvent.summary, 200)
-    : 'DEADLINE: A Museum of Temporary Truths. Documenting stories of justice and injustice as they unfold.';
+  const imageUrl = `${baseUrl}/og-default.png`;
+  const description = 'Tracking the stories nobody else remembers. From sewer deaths to forgotten injustices—we document the lives that mattered, then disappeared from headlines.';
   
   const structuredData = {
     '@context': 'https://schema.org',
     '@type': 'WebSite',
     name: 'DEADLINE',
-    description: 'Museum of Temporary Truths',
+    description: 'Every Life Has a Voice - Museum of Temporary Truths',
     url: baseUrl,
+    about: {
+      '@type': 'Thing',
+      name: 'Human Rights and Social Justice Documentation',
+      description: 'Documenting sewer deaths, forgotten workers, and marginalized lives that disappeared from news coverage'
+    },
     publisher: {
       '@type': 'Organization',
       name: 'DEADLINE',
@@ -148,7 +147,16 @@ export default async function DeadlineEventsPage() {
         '@type': 'ImageObject',
         url: `${baseUrl}/logo.png`,
       },
+      description: 'DEADLINE documents the forgotten: sewer deaths, marginalized workers, and lives that briefly made headlines, then vanished. Every life has a voice.'
     },
+    potentialAction: {
+      '@type': 'SearchAction',
+      target: {
+        '@type': 'EntryPoint',
+        urlTemplate: `${baseUrl}/search?q={search_term_string}`
+      },
+      'query-input': 'required name=search_term_string'
+    }
   };
   
   return (
@@ -163,21 +171,21 @@ export default async function DeadlineEventsPage() {
       <meta name="twitter:card" content="summary_large_image" />
       <meta name="twitter:site" content="@deadline" />
       <meta name="twitter:creator" content="@deadline" />
-      <meta name="twitter:title" content={latestEvent ? latestEvent.title : 'DEADLINE - Museum of Temporary Truths'} />
+      <meta name="twitter:title" content="DEADLINE | Every Life Has a Voice" />
       <meta name="twitter:description" content={description} />
       <meta name="twitter:image" content={imageUrl} />
-      <meta name="twitter:image:alt" content={latestEvent ? latestEvent.title : 'DEADLINE'} />
+      <meta name="twitter:image:alt" content="DEADLINE - Every life has a voice" />
       
       <meta property="og:type" content="website" />
       <meta property="og:site_name" content="DEADLINE" />
-      <meta property="og:title" content={latestEvent ? latestEvent.title : 'DEADLINE - Museum of Temporary Truths'} />
+      <meta property="og:title" content="DEADLINE | Every Life Has a Voice" />
       <meta property="og:description" content={description} />
       <meta property="og:image" content={imageUrl} />
       <meta property="og:image:secure_url" content={imageUrl} />
       <meta property="og:image:type" content="image/jpeg" />
       <meta property="og:image:width" content="1200" />
       <meta property="og:image:height" content="630" />
-      <meta property="og:image:alt" content={latestEvent ? latestEvent.title : 'DEADLINE'} />
+      <meta property="og:image:alt" content="DEADLINE - Every life has a voice" />
       <meta property="og:url" content={baseUrl} />
       <meta property="og:locale" content="en_US" />
       
@@ -203,10 +211,10 @@ export default async function DeadlineEventsPage() {
                 Museum of Temporary Truths
               </p>
               <div className="flex justify-center gap-8 text-sm font-mono">
-                <a href="/about" className="text-black hover:underline">About</a>
-                <a href="/report" className="text-black hover:underline">Report</a>
-                <a href="/policies" className="text-black hover:underline">Policies</a>
-                <a href="/donate" className="text-black hover:underline">Donate</a>
+                <a href="/about" className="text-black hover:underline" title="About DEADLINE - Our Mission">About</a>
+                <a href="/report" className="text-black hover:underline" title="Report about a Story">Report</a>
+                <a href="/policies" className="text-black hover:underline" title="Our Policies">Policies</a>
+                <a href="/donate" className="text-black hover:underline" title="Support Our Work">Donate</a>
               </div>
             </div>
           </div>
