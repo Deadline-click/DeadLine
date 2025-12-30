@@ -13,17 +13,21 @@ interface Event {
   incident_date: string | null;
 }
 
-async function getEvents(): Promise<Event[]> {
+// Fetch only initial batch for SSR
+async function getInitialEvents(): Promise<Event[]> {
   try {
-    const response = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/api/get/events`, {
-      next: { 
-        tags: ['events-list']
-      },
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      cache: 'force-cache'
-    });
+    const response = await fetch(
+      `${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/api/get/events?limit=30&offset=0`,
+      {
+        next: { 
+          tags: ['events-list'],
+          revalidate: 3600 // Revalidate every hour
+        },
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      }
+    );
     
     if (!response.ok) {
       console.error('Failed to fetch events:', response.statusText);
@@ -31,13 +35,7 @@ async function getEvents(): Promise<Event[]> {
     }
     
     const data = await response.json();
-    const events = data.events || [];
-    
-    return events.sort((a: Event, b: Event) => {
-      const dateA = a.last_updated ? new Date(a.last_updated).getTime() : 0;
-      const dateB = b.last_updated ? new Date(b.last_updated).getTime() : 0;
-      return dateB - dateA;
-    });
+    return data.events || [];
   } catch (error) {
     console.error('Error fetching events:', error);
     return [];
@@ -48,9 +46,7 @@ export async function generateMetadata(): Promise<Metadata> {
   const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://deadline.com';
   
   const title = 'DEADLINE | Every Life Has a Voice';
-  
   const description = 'Tracking the stories nobody else remembers. From sewer deaths to forgotten injustices—we document the lives that mattered, then disappeared from headlines.';
-  
   const imageUrl = `${baseUrl}/og-default.png`;
 
   return {
@@ -77,8 +73,8 @@ export async function generateMetadata(): Promise<Metadata> {
     openGraph: {
       type: 'website',
       url: baseUrl,
-      title: 'DEADLINE | Every Life Has a Voice',
-      description: 'Tracking the stories nobody else remembers. From sewer deaths to forgotten injustices—we document the lives that mattered, then disappeared from headlines.',
+      title,
+      description,
       siteName: 'DEADLINE',
       locale: 'en_US',
       images: [
@@ -93,7 +89,7 @@ export async function generateMetadata(): Promise<Metadata> {
     },
     twitter: {
       card: 'summary_large_image',
-      title: 'DEADLINE | Every Life Has a Voice',
+      title,
       description: 'Tracking the stories nobody else remembers. Sewer deaths. Forgotten workers. Lives that mattered.',
       images: [imageUrl],
       creator: '@deadline',
@@ -118,11 +114,11 @@ export async function generateMetadata(): Promise<Metadata> {
   };
 }
 
-export const dynamic = 'force-static';
-export const revalidate = 3600;
+export const dynamic = 'force-dynamic';
+export const revalidate = 3600; // Revalidate every hour
 
 export default async function DeadlineEventsPage() {
-  const events = await getEvents();
+  const initialEvents = await getInitialEvents();
   
   const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://deadline.com';
   const imageUrl = `${baseUrl}/og-default.png`;
@@ -166,31 +162,6 @@ export default async function DeadlineEventsPage() {
         dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
       />
       
-      <meta name="description" content={description} />
-      
-      <meta name="twitter:card" content="summary_large_image" />
-      <meta name="twitter:site" content="@deadline" />
-      <meta name="twitter:creator" content="@deadline" />
-      <meta name="twitter:title" content="DEADLINE | Every Life Has a Voice" />
-      <meta name="twitter:description" content={description} />
-      <meta name="twitter:image" content={imageUrl} />
-      <meta name="twitter:image:alt" content="DEADLINE - Every life has a voice" />
-      
-      <meta property="og:type" content="website" />
-      <meta property="og:site_name" content="DEADLINE" />
-      <meta property="og:title" content="DEADLINE | Every Life Has a Voice" />
-      <meta property="og:description" content={description} />
-      <meta property="og:image" content={imageUrl} />
-      <meta property="og:image:secure_url" content={imageUrl} />
-      <meta property="og:image:type" content="image/jpeg" />
-      <meta property="og:image:width" content="1200" />
-      <meta property="og:image:height" content="630" />
-      <meta property="og:image:alt" content="DEADLINE - Every life has a voice" />
-      <meta property="og:url" content={baseUrl} />
-      <meta property="og:locale" content="en_US" />
-      
-      <link rel="canonical" href={baseUrl} />
-      
       <div className="min-h-screen bg-white">
         <section className="bg-white">
           <div className="max-w-7xl mx-auto px-6 py-16 text-center">
@@ -202,7 +173,9 @@ export default async function DeadlineEventsPage() {
             </p>
           </div>
         </section>
-        <EventsClient initialEvents={events} />
+        
+        <EventsClient initialEvents={initialEvents} />
+        
         <footer className="border-t border-black bg-white mt-24">
           <div className="max-w-7xl mx-auto px-6 py-12">
             <div className="text-center">
