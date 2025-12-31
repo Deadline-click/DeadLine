@@ -19,10 +19,11 @@ interface SearchBarProps {
   allEvents: Event[];
   activeFilter: string;
   onSearchResults: (results: Event[] | null, isActive: boolean) => void;
+  isExpanded: boolean;
+  onToggle: () => void;
 }
 
-export default function SearchBar({ allEvents, activeFilter, onSearchResults }: SearchBarProps) {
-  const [searchExpanded, setSearchExpanded] = useState(false);
+export default function SearchBar({ allEvents, activeFilter, onSearchResults, isExpanded, onToggle }: SearchBarProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const searchInputRef = useRef<HTMLInputElement>(null);
   const searchIndexRef = useRef<Map<number, string>>(new Map());
@@ -91,19 +92,15 @@ export default function SearchBar({ allEvents, activeFilter, onSearchResults }: 
     return () => clearTimeout(timeoutId);
   }, [performSearch, onSearchResults]);
 
-  // Toggle search bar
-  const toggleSearch = useCallback(() => {
-    setSearchExpanded(prev => {
-      const newState = !prev;
-      if (newState) {
-        setTimeout(() => searchInputRef.current?.focus(), 200);
-      } else {
-        setSearchQuery('');
-        onSearchResults(null, false);
-      }
-      return newState;
-    });
-  }, [onSearchResults]);
+  // Focus input when expanded
+  useEffect(() => {
+    if (isExpanded) {
+      setTimeout(() => searchInputRef.current?.focus(), 400);
+    } else {
+      setSearchQuery('');
+      onSearchResults(null, false);
+    }
+  }, [isExpanded, onSearchResults]);
 
   // Clear search when filter changes
   useEffect(() => {
@@ -114,47 +111,66 @@ export default function SearchBar({ allEvents, activeFilter, onSearchResults }: 
   }, [activeFilter]);
 
   return (
-    <div 
-      className={`relative transition-all duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)] ${
-        searchExpanded 
-          ? 'w-full' 
-          : 'w-auto'
-      }`}
-    >
-      <div className={`relative overflow-hidden transition-all duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)] ${
-        searchExpanded 
-          ? 'w-full' 
-          : 'w-auto'
-      }`}>
-        {searchExpanded ? (
-          <div className="w-full px-4 md:px-5 py-2.5 rounded-full border-2 border-black bg-white shadow-sm">
-            <div className="flex items-center justify-between w-full gap-2 md:gap-3">
-              <Search className="w-4 h-4 text-gray-500 flex-shrink-0 transition-colors duration-300" />
-              <input
-                ref={searchInputRef}
-                type="text"
-                value={searchQuery}
-                onChange={(e) => handleSearch(e.target.value)}
-                placeholder="Search stories..."
-                className="flex-1 bg-transparent outline-none text-black placeholder-gray-400 font-mono text-xs md:text-sm transition-all duration-300 min-w-0"
-              />
-              <button
-                onClick={toggleSearch}
-                className="text-gray-600 hover:text-black flex-shrink-0 transition-all duration-300 hover:rotate-90 active:scale-90"
-                aria-label="Close search"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-          </div>
-        ) : (
-          <button
-            onClick={toggleSearch}
-            className="px-4 py-2 rounded-full text-xs font-medium tracking-wide transition-all duration-300 font-mono bg-gray-100 text-black hover:bg-gray-200 hover:scale-105 active:scale-95 shadow-sm hover:shadow-md whitespace-nowrap"
+    <div className="relative w-full h-[36px] flex items-center justify-center">
+      <div 
+        className={`absolute inset-0 flex items-center justify-center transition-all duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)] ${
+          isExpanded 
+            ? 'opacity-100 scale-100' 
+            : 'opacity-100 scale-100'
+        }`}
+      >
+        <div className={`relative transition-all duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)] ${
+          isExpanded 
+            ? 'w-full' 
+            : 'w-auto'
+        }`}>
+          <div className={`flex items-center px-4 py-2 rounded-full border-2 bg-white transition-all duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)] ${
+            isExpanded 
+              ? 'border-black shadow-sm justify-between gap-2 md:gap-3' 
+              : 'border-transparent bg-gray-100 hover:bg-gray-200 justify-center cursor-pointer hover:scale-105 active:scale-95'
+          }`}
+          onClick={!isExpanded ? onToggle : undefined}
           >
-            SEARCH
-          </button>
-        )}
+            <div className={`flex items-center gap-2 md:gap-3 transition-all duration-500 ${
+              isExpanded ? 'flex-1 min-w-0' : 'flex-none'
+            }`}>
+              <Search className={`w-4 h-4 flex-shrink-0 transition-colors duration-500 ${
+                isExpanded ? 'text-gray-500' : 'text-black'
+              }`} />
+              
+              <div className={`relative transition-all duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)] overflow-hidden ${
+                isExpanded ? 'w-full opacity-100' : 'w-0 opacity-0'
+              }`}>
+                <input
+                  ref={searchInputRef}
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => handleSearch(e.target.value)}
+                  placeholder="Search stories..."
+                  className="w-full bg-transparent outline-none text-black placeholder-gray-400 font-mono text-xs md:text-sm"
+                />
+              </div>
+              
+              <span className={`text-xs font-medium tracking-wide font-mono text-black whitespace-nowrap transition-all duration-500 ${
+                isExpanded ? 'w-0 opacity-0 overflow-hidden' : 'w-auto opacity-100'
+              }`}>
+                SEARCH
+              </span>
+            </div>
+            
+            <button
+              onClick={isExpanded ? onToggle : undefined}
+              className={`flex-shrink-0 transition-all duration-500 ${
+                isExpanded 
+                  ? 'opacity-100 scale-100 rotate-0 hover:rotate-90 text-gray-600 hover:text-black' 
+                  : 'opacity-0 scale-0 w-0'
+              }`}
+              aria-label="Close search"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   );
