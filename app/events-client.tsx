@@ -2,7 +2,6 @@
 import { useState, useCallback, useMemo, lazy, Suspense } from 'react';
 import { useRouter } from 'next/navigation';
 
-// Lazy load search component
 const SearchBar = lazy(() => import('./search-bar'));
 
 interface Event {
@@ -77,7 +76,6 @@ export function EventsClient({ batches, allEvents }: EventsClientProps) {
       event => event.status.toLowerCase() === activeFilter.toLowerCase()
     );
 
-    // Create new batches from filtered events
     const newBatches: CacheBatch[] = [];
     const batchSize = 30;
     const totalBatches = Math.ceil(filteredEvents.length / batchSize);
@@ -101,7 +99,6 @@ export function EventsClient({ batches, allEvents }: EventsClientProps) {
       return searchResults;
     }
 
-    // Flatten batches up to current batch index
     const eventsToShow: Event[] = [];
     for (let i = 0; i <= currentBatchIndex && i < filteredBatches.length; i++) {
       eventsToShow.push(...filteredBatches[i].events);
@@ -109,7 +106,6 @@ export function EventsClient({ batches, allEvents }: EventsClientProps) {
     return eventsToShow;
   }, [searchActive, searchResults, currentBatchIndex, filteredBatches]);
 
-  // Check if there are more batches to load
   const hasMoreBatches = currentBatchIndex < filteredBatches.length - 1;
 
   // Handle filter change
@@ -159,17 +155,19 @@ export function EventsClient({ batches, allEvents }: EventsClientProps) {
     <>
       <section className="border-y border-black bg-white sticky top-0 z-40">
         <div className="max-w-7xl mx-auto px-6 py-6">
-          <div className="flex flex-wrap gap-3 justify-center items-center">
-            <div className="flex flex-wrap gap-3 justify-center items-center">
+          <div className="flex flex-nowrap gap-3 justify-center items-center overflow-hidden">
+            <div className={`flex flex-nowrap gap-3 justify-center items-center transition-all duration-500 ease-out ${
+              searchActive ? 'opacity-0 -translate-x-8 pointer-events-none' : 'opacity-100 translate-x-0'
+            }`}>
               {categories.map((category) => (
                 <button
                   key={category}
                   onClick={() => handleFilterChange(category)}
-                  className={`px-4 py-2 rounded-full text-xs font-medium tracking-wide transition-all duration-300 font-mono ${
+                  className={`px-4 py-2 rounded-full text-xs font-medium tracking-wide transition-all duration-300 font-mono whitespace-nowrap ${
                     activeFilter === category
-                      ? 'bg-black text-white'
+                      ? 'bg-black text-white shadow-md'
                       : 'bg-gray-100 text-black hover:bg-gray-200'
-                  }`}
+                  } hover:scale-105 active:scale-95`}
                 >
                   {category.toUpperCase()}
                 </button>
@@ -193,7 +191,7 @@ export function EventsClient({ batches, allEvents }: EventsClientProps) {
 
       <main className="max-w-7xl mx-auto px-6 py-12">
         {displayedEvents.length === 0 ? (
-          <div className="text-center py-24">
+          <div className="text-center py-24 animate-in fade-in duration-500">
             <div className="text-black font-normal tracking-wide text-lg font-mono mb-4">
               {searchActive ? 'NO STORIES MATCH YOUR SEARCH' : 'NO STORIES FOUND'}
             </div>
@@ -204,7 +202,7 @@ export function EventsClient({ batches, allEvents }: EventsClientProps) {
                   setSearchActive(false);
                   handleFilterChange('All');
                 }}
-                className="text-black font-medium hover:text-gray-600 transition-colors font-mono text-sm underline"
+                className="text-black font-medium hover:text-gray-600 transition-colors font-mono text-sm underline hover:scale-105 active:scale-95 inline-block transition-transform duration-200"
               >
                 CLEAR SEARCH
               </button>
@@ -278,7 +276,7 @@ export function EventsClient({ batches, allEvents }: EventsClientProps) {
               <div className="flex justify-center mt-12">
                 <button
                   onClick={handleLoadMore}
-                  className="px-8 py-3 rounded-full text-sm font-medium tracking-wide transition-all duration-300 font-mono bg-black text-white hover:bg-gray-800 hover:scale-105 active:scale-95"
+                  className="px-8 py-3 rounded-full text-sm font-medium tracking-wide transition-all duration-300 font-mono bg-black text-white hover:bg-gray-800 hover:scale-105 active:scale-95 shadow-md hover:shadow-lg"
                 >
                   LOAD MORE
                 </button>
