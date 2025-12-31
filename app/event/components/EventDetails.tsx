@@ -401,30 +401,30 @@ export default function EventDetailsComponent({ eventDetails, eventUpdates }: Ev
                     </article>
                   ))
                 ) : (
-                  <div className="flex flex-col items-center justify-center py-12 px-6 min-h-[300px]">
-                    <div className="border-2 border-black p-8 max-w-md text-center bg-gray-50">
-                      <div className="mb-6">
-                        <div className="inline-block bg-black text-white px-3 py-1 text-xs font-bold uppercase tracking-wider mb-4 font-mono">
-                          NO UPDATES YET
-                        </div>
-                        <p className="text-xs text-black font-mono leading-loose mb-2">
-                          We're actively monitoring this case and will publish updates as new information becomes available.
-                        </p>
-                        <p className="text-xs text-black font-mono leading-loose">
-                          Check back soon for the latest developments.
-                        </p>
+                  <div className="h-full flex flex-col items-center justify-center text-center space-y-8">
+                    <div className="space-y-3">
+                      <div className="inline-block bg-black text-white px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider font-mono">
+                        NO UPDATES
                       </div>
-                      <div className="border-t-2 border-black pt-6 mt-6">
-                        <p className="text-xs text-black font-mono leading-loose mb-4">
-                          Help us continue our investigative work and keep the public informed.
-                        </p>
-                        <a 
-                          href="/donate" 
-                          className="inline-block bg-black text-white px-6 py-2.5 text-xs font-bold uppercase tracking-wider hover:bg-gray-800 transition-colors border-2 border-black font-mono"
-                        >
-                          SUPPORT US
-                        </a>
-                      </div>
+                      <p className="text-[11px] text-black font-mono leading-relaxed max-w-xs mx-auto">
+                        Monitoring in progress. Updates will be published as information becomes available.
+                      </p>
+                    </div>
+                    
+                    <div className="w-16 border-t border-black"></div>
+                    
+                    <div className="space-y-3">
+                      <p className="text-[11px] text-black font-mono leading-relaxed max-w-xs mx-auto">
+                        Support investigative journalism
+                      </p>
+                      <a 
+                        href="/donate"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-block bg-black text-white px-5 py-2 text-[10px] font-bold uppercase tracking-wider hover:bg-gray-800 transition-colors font-mono"
+                      >
+                        DONATE
+                      </a>
                     </div>
                   </div>
                 )}
