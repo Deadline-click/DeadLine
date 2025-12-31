@@ -73,12 +73,12 @@ export function EventsClient({ initialEvents }: EventsClientProps) {
   const FETCH_SIZE = 50;
   const categories = ['All', 'Justice', 'Injustice'];
 
-  // Sort events by last_updated (most recent first)
-  const sortEventsByDate = useCallback((events: Event[]): Event[] => {
+  // Sort events by last_updated (most recent first - DESCENDING)
+  const sortEventsByLastUpdated = useCallback((events: Event[]): Event[] => {
     return [...events].sort((a, b) => {
       const dateA = a.last_updated ? new Date(a.last_updated).getTime() : 0;
       const dateB = b.last_updated ? new Date(b.last_updated).getTime() : 0;
-      return dateB - dateA; // Descending order (newest first)
+      return dateB - dateA; // Descending: newest first
     });
   }, []);
 
@@ -123,7 +123,7 @@ export function EventsClient({ initialEvents }: EventsClientProps) {
 
   // Initialize cache with sorted initial events
   useEffect(() => {
-    const sortedInitial = sortEventsByDate(initialEvents);
+    const sortedInitial = sortEventsByLastUpdated(initialEvents);
     buildSearchIndex(sortedInitial);
     
     // Cache "All" events
@@ -133,9 +133,13 @@ export function EventsClient({ initialEvents }: EventsClientProps) {
       offset: sortedInitial.length
     });
     
-    // Cache filtered events
-    const justiceEvents = sortedInitial.filter(e => e.status.toLowerCase() === 'justice');
-    const injusticeEvents = sortedInitial.filter(e => e.status.toLowerCase() === 'injustice');
+    // Cache filtered events - also sorted by last_updated
+    const justiceEvents = sortEventsByLastUpdated(
+      sortedInitial.filter(e => e.status.toLowerCase() === 'justice')
+    );
+    const injusticeEvents = sortEventsByLastUpdated(
+      sortedInitial.filter(e => e.status.toLowerCase() === 'injustice')
+    );
     
     cacheRef.current.set('justice', {
       events: justiceEvents,
@@ -151,7 +155,7 @@ export function EventsClient({ initialEvents }: EventsClientProps) {
     
     setDisplayedEvents(sortedInitial.slice(0, ITEMS_PER_PAGE));
     setInitialLoading(false);
-  }, [initialEvents, sortEventsByDate, buildSearchIndex]);
+  }, [initialEvents, sortEventsByLastUpdated, buildSearchIndex]);
 
   // Fetch more events from API
   const fetchMoreEvents = useCallback(async (filter: string): Promise<Event[]> => {
@@ -171,7 +175,8 @@ export function EventsClient({ initialEvents }: EventsClientProps) {
       }
       
       const response = await fetch(`/api/get/events?${params}`, {
-        headers: { 'Content-Type': 'application/json' }
+        headers: { 'Content-Type': 'application/json' },
+        cache: 'no-store' // Don't auto-revalidate
       });
       
       if (!response.ok) return [];
@@ -180,11 +185,11 @@ export function EventsClient({ initialEvents }: EventsClientProps) {
       const newEvents: Event[] = data.events || [];
       
       if (newEvents.length > 0) {
-        const sortedNew = sortEventsByDate(newEvents);
-        buildSearchIndex(sortedNew);
+        buildSearchIndex(newEvents);
         
-        const allEvents = [...cache.events, ...sortedNew];
-        const sortedAll = sortEventsByDate(allEvents);
+        // Merge and sort all events by last_updated
+        const allEvents = [...cache.events, ...newEvents];
+        const sortedAll = sortEventsByLastUpdated(allEvents);
         
         cacheRef.current.set(cacheKey, {
           events: sortedAll,
@@ -192,15 +197,21 @@ export function EventsClient({ initialEvents }: EventsClientProps) {
           offset: cache.offset + newEvents.length
         });
         
-        return sortedNew;
+        return newEvents;
       }
+      
+      // No more events to fetch
+      cacheRef.current.set(cacheKey, {
+        ...cache,
+        hasMore: false
+      });
       
       return [];
     } catch (error) {
       console.error('Error fetching events:', error);
       return [];
     }
-  }, [getCacheKey, sortEventsByDate, buildSearchIndex]);
+  }, [getCacheKey, sortEventsByLastUpdated, buildSearchIndex]);
 
   // Get current events for display
   const getCurrentEvents = useCallback((): Event[] => {
@@ -210,6 +221,7 @@ export function EventsClient({ initialEvents }: EventsClientProps) {
     if (!cache) return [];
     
     if (searchQuery.trim()) {
+      // Search results are also sorted by last_updated
       return performSearch(searchQuery, cache.events);
     }
     
@@ -323,7 +335,7 @@ export function EventsClient({ initialEvents }: EventsClientProps) {
     fetchMoreEvents
   ]);
 
-  // Check if more content available - FIXED TYPE ERROR
+  // Check if more content available
   const hasMore = useCallback((): boolean => {
     const currentEvents = getCurrentEvents();
     const cacheKey = getCacheKey(activeFilter);
@@ -481,11 +493,7 @@ export function EventsClient({ initialEvents }: EventsClientProps) {
                     <div className="space-y-4">
                       <div className="flex items-center justify-between text-xs font-normal tracking-widest text-black font-mono">
                         <time>{formatDate(event.incident_date)}</time>
-                        <span className={`px-2 py-1 tracking-wide ${
-                          event.status.toLowerCase() === 'justice' 
-                            ? 'bg-green-600 text-white' 
-                            : 'bg-black text-white'
-                        }`}>
+                        <span className="px-2 py-1 tracking-wide bg-black text-white">
                           {getStatusLabel(event.status)}
                         </span>
                       </div>
