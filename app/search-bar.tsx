@@ -29,7 +29,6 @@ export default function SearchBar({ allEvents, activeFilter, onSearchResults }: 
 
   // Build search index on mount (memoized)
   useEffect(() => {
-    // Only build index if not already built
     if (searchIndexRef.current.size === 0) {
       allEvents.forEach(event => {
         const searchText = [
@@ -60,7 +59,7 @@ export default function SearchBar({ allEvents, activeFilter, onSearchResults }: 
     );
   }, [allEvents, activeFilter]);
 
-  // Perform search across all events (including batches not yet loaded)
+  // Perform search across all events
   const performSearch = useCallback((query: string): Event[] => {
     if (!query.trim()) return filteredEvents;
     
@@ -72,7 +71,6 @@ export default function SearchBar({ allEvents, activeFilter, onSearchResults }: 
       return searchTerms.every(term => searchText.includes(term));
     });
     
-    // Results are already sorted by last_updated from server
     return results;
   }, [filteredEvents]);
 
@@ -85,7 +83,6 @@ export default function SearchBar({ allEvents, activeFilter, onSearchResults }: 
       return;
     }
 
-    // Debounce search
     const timeoutId = setTimeout(() => {
       const results = performSearch(value);
       onSearchResults(results, true);
@@ -99,7 +96,7 @@ export default function SearchBar({ allEvents, activeFilter, onSearchResults }: 
     setSearchExpanded(prev => {
       const newState = !prev;
       if (newState) {
-        setTimeout(() => searchInputRef.current?.focus(), 100);
+        setTimeout(() => searchInputRef.current?.focus(), 200);
       } else {
         setSearchQuery('');
         onSearchResults(null, false);
@@ -114,43 +111,51 @@ export default function SearchBar({ allEvents, activeFilter, onSearchResults }: 
       const results = performSearch(searchQuery);
       onSearchResults(results, true);
     }
-  }, [activeFilter]); // Re-search when filter changes
+  }, [activeFilter]);
 
   return (
-    <div className={`transition-all duration-700 ease-[cubic-bezier(0.4,0,0.2,1)] ${
-      searchExpanded 
-        ? 'w-full max-w-xl opacity-100 scale-100' 
-        : 'w-auto opacity-100 scale-100'
-    }`}>
-      {searchExpanded ? (
-        <div className="px-4 py-2 rounded-full border-2 border-black bg-white w-full">
-          <div className="flex items-center justify-between w-full gap-2">
-            <Search className="w-4 h-4 text-gray-400 flex-shrink-0" />
-            <input
-              ref={searchInputRef}
-              type="text"
-              value={searchQuery}
-              onChange={(e) => handleSearch(e.target.value)}
-              placeholder="Search by title, summary, date, or tags..."
-              className="flex-1 bg-transparent outline-none text-black placeholder-gray-400 font-mono text-xs"
-            />
-            <button
-              onClick={toggleSearch}
-              className="text-black hover:text-gray-600 flex-shrink-0 transition-all duration-300 hover:rotate-90"
-              aria-label="Close search"
-            >
-              <X className="w-4 h-4" />
-            </button>
+    <div 
+      className={`relative transition-all duration-500 ease-out ${
+        searchExpanded 
+          ? 'w-full max-w-2xl' 
+          : 'w-auto'
+      }`}
+    >
+      <div className={`relative overflow-hidden transition-all duration-500 ease-out ${
+        searchExpanded 
+          ? 'w-full' 
+          : 'w-auto'
+      }`}>
+        {searchExpanded ? (
+          <div className="w-full px-5 py-2.5 rounded-full border-2 border-black bg-white shadow-sm animate-in fade-in slide-in-from-right-4 duration-500">
+            <div className="flex items-center justify-between w-full gap-3">
+              <Search className="w-4 h-4 text-gray-500 flex-shrink-0 transition-colors duration-300" />
+              <input
+                ref={searchInputRef}
+                type="text"
+                value={searchQuery}
+                onChange={(e) => handleSearch(e.target.value)}
+                placeholder="Search by title, summary, date, or tags..."
+                className="flex-1 bg-transparent outline-none text-black placeholder-gray-400 font-mono text-xs transition-all duration-300"
+              />
+              <button
+                onClick={toggleSearch}
+                className="text-gray-600 hover:text-black flex-shrink-0 transition-all duration-300 hover:rotate-90 active:scale-90"
+                aria-label="Close search"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
           </div>
-        </div>
-      ) : (
-        <button
-          onClick={toggleSearch}
-          className="px-4 py-2 rounded-full text-xs font-medium tracking-wide transition-all duration-300 font-mono bg-gray-100 text-black hover:bg-gray-200 hover:scale-105 active:scale-95"
-        >
-          SEARCH
-        </button>
-      )}
+        ) : (
+          <button
+            onClick={toggleSearch}
+            className="px-4 py-2 rounded-full text-xs font-medium tracking-wide transition-all duration-300 font-mono bg-gray-100 text-black hover:bg-gray-200 hover:scale-105 active:scale-95 shadow-sm hover:shadow-md"
+          >
+            SEARCH
+          </button>
+        )}
+      </div>
     </div>
   );
 }
