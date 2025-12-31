@@ -23,7 +23,6 @@ export async function GET(request: NextRequest) {
     const slug = searchParams.get('slug');
     const apiKey = searchParams.get('api_key');
 
-    // Validate API key
     if (!apiKey || apiKey !== API_SECRET_KEY) {
       return NextResponse.json(
         { success: false, error: 'Invalid or missing API key' },
@@ -33,7 +32,6 @@ export async function GET(request: NextRequest) {
 
     let finalEventId = eventId;
 
-    // If slug is provided, first get the event_id from events table
     if (slug && !eventId) {
       const { data: eventData, error: eventError } = await supabase
         .from('events')
@@ -45,7 +43,12 @@ export async function GET(request: NextRequest) {
         console.error('[API /api/get/updates] Error fetching event_id:', eventError);
         return NextResponse.json(
           { success: true, data: [], count: 0 },
-          { status: 200 }
+          {
+            status: 200,
+            headers: {
+              'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=30'
+            }
+          }
         );
       }
 
@@ -59,7 +62,6 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Fetch updates for the event
     const { data, error, count } = await supabase
       .from('event_updates')
       .select('*', { count: 'exact' })
@@ -68,20 +70,34 @@ export async function GET(request: NextRequest) {
 
     if (error) {
       console.error('[API /api/get/updates] Supabase error:', error);
-      // Return empty array instead of error for updates (non-critical)
-      return NextResponse.json({
-        success: true,
-        data: [],
-        count: 0
-      });
+      return NextResponse.json(
+        {
+          success: true,
+          data: [],
+          count: 0
+        },
+        {
+          status: 200,
+          headers: {
+            'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=30'
+          }
+        }
+      );
     }
 
-    return NextResponse.json({
-      success: true,
-      data: (data || []) as EventUpdate[],
-      count: count || 0
-    });
-
+    return NextResponse.json(
+      {
+        success: true,
+        data: (data || []) as EventUpdate[],
+        count: count || 0
+      },
+      {
+        status: 200,
+        headers: {
+          'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=30'
+        }
+      }
+    );
   } catch (error) {
     console.error('[API /api/get/updates] Exception:', error);
     return NextResponse.json(
@@ -90,7 +106,12 @@ export async function GET(request: NextRequest) {
         data: [],
         count: 0
       },
-      { status: 200 }
+      {
+        status: 200,
+        headers: {
+          'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=30'
+        }
+      }
     );
   }
 }
