@@ -129,8 +129,24 @@ export default function ImageSlider({ images }: ImageSliderProps) {
       }
     };
 
+    const handleArrowKeys = (e: KeyboardEvent) => {
+      if (fullscreenImage !== null) {
+        if (e.key === 'ArrowLeft') {
+          e.preventDefault();
+          handlePrevImage();
+        } else if (e.key === 'ArrowRight') {
+          e.preventDefault();
+          handleNextImage();
+        }
+      }
+    };
+
     window.addEventListener('keydown', handleEscape);
-    return () => window.removeEventListener('keydown', handleEscape);
+    window.addEventListener('keydown', handleArrowKeys);
+    return () => {
+      window.removeEventListener('keydown', handleEscape);
+      window.removeEventListener('keydown', handleArrowKeys);
+    };
   }, [fullscreenImage]);
 
   const handleImageError = (index: number) => {
@@ -242,7 +258,7 @@ export default function ImageSlider({ images }: ImageSliderProps) {
               return (
                 <figure
                   key={`image-${index}`}
-                  className="flex-shrink-0 w-70 h-52 bg-gray-50 overflow-hidden relative group cursor-pointer rounded-lg"
+                  className="flex-shrink-0 w-70 h-52 bg-gray-50 overflow-hidden relative border border-gray-200 group cursor-pointer"
                   onClick={() => handleImageClick(index)}
                   itemScope
                   itemType="https://schema.org/ImageObject"
@@ -276,11 +292,6 @@ export default function ImageSlider({ images }: ImageSliderProps) {
                       }
                     }}
                   />
-                  <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-                    <svg className="w-6 h-6 text-white drop-shadow-lg" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7" />
-                    </svg>
-                  </div>
                   <meta itemProp="name" content={`Gallery image ${imageNumber}`} />
                 </figure>
               );
@@ -291,56 +302,60 @@ export default function ImageSlider({ images }: ImageSliderProps) {
 
       {fullscreenImage !== null && isDesktop && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-80"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-70"
           onClick={handleCloseFullscreen}
           role="dialog"
           aria-modal="true"
           aria-label="Fullscreen image viewer"
         >
-          <button
-            onClick={handleCloseFullscreen}
-            className="absolute top-6 right-6 text-white hover:text-gray-300 transition-colors z-10"
-            aria-label="Close fullscreen view"
-          >
-            <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-
-          <button
-            onClick={handlePrevImage}
-            className="absolute left-6 top-1/2 -translate-y-1/2 text-white hover:text-gray-300 transition-colors z-10"
-            aria-label="Previous image"
-          >
-            <svg className="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-            </svg>
-          </button>
-
-          <button
-            onClick={handleNextImage}
-            className="absolute right-6 top-1/2 -translate-y-1/2 text-white hover:text-gray-300 transition-colors z-10"
-            aria-label="Next image"
-          >
-            <svg className="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-            </svg>
-          </button>
-
           <div
-            className="max-w-7xl max-h-[90vh] w-full mx-8"
+            className="relative w-full h-full flex items-center justify-center p-4"
             onClick={(e) => e.stopPropagation()}
           >
             <img
               src={extendedImages[fullscreenImage]}
               alt={`Gallery image ${(fullscreenImage % images.length) + 1} - Fullscreen view`}
-              className="w-full h-auto max-h-[90vh] object-contain rounded-lg shadow-2xl"
+              className="max-w-full max-h-full object-contain select-none"
               draggable={false}
             />
-          </div>
+            
+            <button
+              onClick={handleCloseFullscreen}
+              className="absolute top-6 right-6 bg-white bg-opacity-90 hover:bg-opacity-100 text-black w-12 h-12 flex items-center justify-center transition-all shadow-lg hover:scale-110 active:scale-95"
+              aria-label="Close fullscreen view"
+              title="Close (Esc)"
+            >
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+              </svg>
+            </button>
 
-          <div className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-black bg-opacity-60 text-white px-4 py-2 text-sm font-mono rounded-full">
-            {(fullscreenImage % images.length) + 1} / {images.length}
+            <button
+              onClick={handlePrevImage}
+              className="absolute left-6 top-1/2 -translate-y-1/2 bg-white bg-opacity-90 hover:bg-opacity-100 text-black w-12 h-12 flex items-center justify-center transition-all shadow-lg hover:scale-110 active:scale-95"
+              aria-label="Previous image"
+              title="Previous (←)"
+            >
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="15 18 9 12 15 6"></polyline>
+              </svg>
+            </button>
+
+            <button
+              onClick={handleNextImage}
+              className="absolute right-6 top-1/2 -translate-y-1/2 bg-white bg-opacity-90 hover:bg-opacity-100 text-black w-12 h-12 flex items-center justify-center transition-all shadow-lg hover:scale-110 active:scale-95"
+              aria-label="Next image"
+              title="Next (→)"
+            >
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="9 18 15 12 9 6"></polyline>
+              </svg>
+            </button>
+
+            <div className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-white bg-opacity-90 text-black px-4 py-2 text-sm font-mono font-bold shadow-lg">
+              {(fullscreenImage % images.length) + 1} / {images.length}
+            </div>
           </div>
         </div>
       )}
