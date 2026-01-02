@@ -154,7 +154,7 @@ export default function SearchBar({ allEvents, activeFilter, onSearchResults, is
       >
         {/* Search Icon */}
         <div className={`flex items-center justify-center flex-shrink-0 transition-all duration-[400ms] ease-[cubic-bezier(0.34,1.56,0.64,1)] ${
-          isExpanded ? 'pl-3 md:pl-4 opacity-100 w-auto' : 'pl-0 opacity-0 w-0 overflow-hidden'
+          isExpanded ? 'pl-3 md:pl-4 opacity-100 scale-100' : 'pl-0 opacity-0 scale-0 w-0'
         }`}>
           <Search className="w-4 h-4 text-black transition-all duration-300 ease-out" />
         </div>
