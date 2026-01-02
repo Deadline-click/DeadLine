@@ -180,10 +180,10 @@ export default function SearchBar({ allEvents, activeFilter, onSearchResults, is
         />
 
         {/* Button Text / Close Button Container */}
-        <div className="relative flex items-center pr-3 md:pr-4 flex-shrink-0">
+        <div className="relative flex items-center justify-center pr-3 md:pr-4 flex-shrink-0">
           {/* SEARCH Text */}
           <div 
-            className={`transition-all duration-300 ease-out ${
+            className={`flex items-center justify-center py-2 transition-all duration-300 ease-out ${
               isExpanded ? 'opacity-0 scale-75 pointer-events-none absolute' : 'opacity-100 scale-100'
             }`}
           >
