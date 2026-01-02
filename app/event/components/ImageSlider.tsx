@@ -286,56 +286,53 @@ export default function ImageSlider({ images }: ImageSliderProps) {
 
       {fullscreenImage !== null && isDesktop && (
         <div
-          className="fixed inset-0 z-50 bg-black bg-opacity-95 flex items-center justify-center"
+          className="fixed inset-0 z-50 flex items-center justify-center"
+          style={{ backdropFilter: 'blur(20px)', backgroundColor: 'rgba(0, 0, 0, 0.5)' }}
           onClick={handleCloseFullscreen}
           role="dialog"
           aria-modal="true"
           aria-label="Fullscreen image viewer"
         >
-          <button
-            onClick={handleCloseFullscreen}
-            className="absolute top-4 right-4 z-10 bg-white text-black w-10 h-10 flex items-center justify-center hover:bg-gray-200 transition-colors border-2 border-black font-bold text-xl"
-            aria-label="Close fullscreen view"
-          >
-            ×
-          </button>
-
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              handlePrevImage();
-            }}
-            className="absolute left-4 z-10 bg-white text-black w-10 h-10 flex items-center justify-center hover:bg-gray-200 transition-colors border-2 border-black font-bold text-xl"
-            aria-label="Previous image"
-          >
-            ‹
-          </button>
-
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              handleNextImage();
-            }}
-            className="absolute right-4 z-10 bg-white text-black w-10 h-10 flex items-center justify-center hover:bg-gray-200 transition-colors border-2 border-black font-bold text-xl"
-            aria-label="Next image"
-          >
-            ›
-          </button>
-
           <div
-            className="max-w-screen-xl max-h-screen w-full h-full p-8 flex items-center justify-center"
+            className="relative max-w-6xl max-h-[90vh] w-full mx-8"
             onClick={(e) => e.stopPropagation()}
           >
-            <img
-              src={extendedImages[fullscreenImage]}
-              alt={`Gallery image ${(fullscreenImage % images.length) + 1} - Fullscreen view`}
-              className="max-w-full max-h-full object-contain"
-              draggable={false}
-            />
-          </div>
+            <div className="relative bg-white border-4 border-black shadow-2xl">
+              <img
+                src={extendedImages[fullscreenImage]}
+                alt={`Gallery image ${(fullscreenImage % images.length) + 1} - Fullscreen view`}
+                className="w-full h-auto max-h-[85vh] object-contain"
+                draggable={false}
+              />
+              
+              <button
+                onClick={handleCloseFullscreen}
+                className="absolute top-3 right-3 bg-black text-white w-10 h-10 flex items-center justify-center hover:bg-gray-800 transition-all font-bold text-2xl shadow-lg hover:scale-110 active:scale-95"
+                aria-label="Close fullscreen view"
+              >
+                ×
+              </button>
 
-          <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 bg-white bg-opacity-90 px-3 py-1 text-black text-sm font-mono">
-            {(fullscreenImage % images.length) + 1} / {images.length}
+              <button
+                onClick={handlePrevImage}
+                className="absolute left-3 top-1/2 -translate-y-1/2 bg-black text-white w-12 h-12 flex items-center justify-center hover:bg-gray-800 transition-all font-bold text-2xl shadow-lg hover:scale-110 active:scale-95"
+                aria-label="Previous image"
+              >
+                ‹
+              </button>
+
+              <button
+                onClick={handleNextImage}
+                className="absolute right-3 top-1/2 -translate-y-1/2 bg-black text-white w-12 h-12 flex items-center justify-center hover:bg-gray-800 transition-all font-bold text-2xl shadow-lg hover:scale-110 active:scale-95"
+                aria-label="Next image"
+              >
+                ›
+              </button>
+
+              <div className="absolute bottom-3 left-1/2 -translate-x-1/2 bg-black text-white px-4 py-2 text-sm font-mono font-bold shadow-lg">
+                {(fullscreenImage % images.length) + 1} / {images.length}
+              </div>
+            </div>
           </div>
         </div>
       )}

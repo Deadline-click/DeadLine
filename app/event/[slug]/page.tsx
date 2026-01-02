@@ -726,9 +726,6 @@ export default async function EventPage({ params }: Props) {
               <p className="text-white text-sm font-mono mb-2">
                 Museum of Temporary Truths
               </p>
-              <p className="text-white text-xs opacity-80">
-                Documenting forgotten lives, sewer deaths, and stories the world abandoned
-              </p>
             </div>
             <nav className="flex justify-center space-x-6 mb-4" aria-label="Footer navigation">
               <a href="/about" className="text-xs font-normal text-white hover:underline transition-all duration-300 font-mono" title="About DEADLINE - Our Mission and Purpose">About</a>
