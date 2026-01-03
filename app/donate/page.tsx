@@ -1,6 +1,8 @@
+'use client';
+
 import { Heart, Users, Target, Clock } from 'lucide-react';
 import DonateButton from './DonateButton';
-import { unstable_cache } from 'next/cache';
+import { useEffect, useState } from 'react';
 import './donations.css';
 
 interface Donation {
@@ -19,53 +21,47 @@ interface DonationData {
   goal: number;
 }
 
-const getDonations = unstable_cache(
-  async (): Promise<DonationData> => {
-    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
-    
-    try {
-      const response = await fetch(`${baseUrl}/api/get/donate`, {
-        next: { 
-          revalidate: 60,
-          tags: ['donations-cache'] 
+export default function DonationsPage() {
+  const [data, setData] = useState<DonationData>({
+    donations: [],
+    totalAmount: 0,
+    donorCount: 0,
+    goal: 50000,
+  });
+
+  useEffect(() => {
+    const fetchDonations = async () => {
+      const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || window.location.origin;
+      
+      try {
+        const response = await fetch(`${baseUrl}/api/get/donate`, {
+          cache: 'no-store'
+        });
+
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
         }
-      });
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+        const result = await response.json();
+        
+        if (result.success) {
+          setData({
+            donations: result.donations || [],
+            totalAmount: result.totalAmount || 0,
+            donorCount: result.donorCount || 0,
+            goal: result.goal || 50000,
+          });
+        }
+      } catch (error) {
+        console.error('Error fetching donations:', error);
       }
+    };
 
-      const result = await response.json();
-      
-      if (result.success) {
-        return {
-          donations: result.donations || [],
-          totalAmount: result.totalAmount || 0,
-          donorCount: result.donorCount || 0,
-          goal: result.goal || 50000,
-        };
-      }
-      
-      throw new Error(result.message || 'Failed to fetch donations');
-    } catch (error) {
-      console.error('Error fetching donations:', error);
-      return {
-        donations: [],
-        totalAmount: 0,
-        donorCount: 0,
-        goal: 50000,
-      };
-    }
-  },
-  ['donations-data'],
-  {
-    revalidate: 60,
-    tags: ['donations-cache'],
-  }
-);
+    fetchDonations();
+    const interval = setInterval(fetchDonations, 60000);
+    return () => clearInterval(interval);
+  }, []);
 
-export default async function DonationsPage() {
-  const data = await getDonations();
   const progress = Math.min((data.totalAmount / data.goal) * 100, 100);
 
   return (
