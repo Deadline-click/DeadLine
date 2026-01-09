@@ -95,7 +95,7 @@ export default function SearchBar({ allEvents, activeFilter, onSearchResults, is
   // Focus input when expanded
   useEffect(() => {
     if (isExpanded) {
-      setTimeout(() => searchInputRef.current?.focus(), 100);
+      setTimeout(() => searchInputRef.current?.focus(), 150);
     } else {
       setSearchQuery('');
       onSearchResults(null, false);
@@ -118,36 +118,99 @@ export default function SearchBar({ allEvents, activeFilter, onSearchResults, is
 
   return (
     <div className="relative h-[36px] flex items-center">
-      {!isExpanded ? (
-        <button
-          onClick={onToggle}
-          className="px-3 md:px-4 py-2 rounded-full text-xs font-medium tracking-wide transition-all duration-300 font-mono whitespace-nowrap h-[36px] bg-gray-100 text-black hover:bg-gray-200 hover:scale-105 active:scale-95 flex items-center gap-2"
-        >
-          <Search className="w-4 h-4" />
-          SEARCH
-        </button>
-      ) : (
-        <div className="flex items-center gap-2 w-full animate-in fade-in duration-300">
-          <div className="relative flex-1">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 pointer-events-none" />
-            <input
-              ref={searchInputRef}
-              type="text"
-              value={searchQuery}
-              onChange={(e) => handleSearch(e.target.value)}
-              placeholder="Search stories..."
-              className="w-full h-[36px] pl-10 pr-4 rounded-full border-2 border-black bg-white text-black placeholder-gray-400 font-mono text-xs md:text-sm outline-none shadow-sm"
-            />
-          </div>
-          <button
-            onClick={handleClear}
-            className="flex-shrink-0 w-[36px] h-[36px] rounded-full bg-black text-white hover:bg-gray-800 transition-all duration-300 hover:scale-105 active:scale-95 flex items-center justify-center shadow-md"
-            aria-label="Close search"
-          >
-            <X className="w-4 h-4" />
-          </button>
+      <div 
+        className={`relative flex items-center overflow-hidden rounded-full bg-gray-100 transition-all duration-[400ms] ease-[cubic-bezier(0.34,1.56,0.64,1)] h-[36px] ${
+          isExpanded 
+            ? 'w-full' 
+            : 'w-auto cursor-pointer hover:bg-gray-200'
+        }`}
+        style={{
+          transform: isExpanded ? 'scale(1)' : 'scale(1)',
+          transition: 'all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1), transform 0.15s ease-out, background-color 0.2s ease-out'
+        }}
+        onClick={!isExpanded ? onToggle : undefined}
+        onMouseEnter={(e) => {
+          if (!isExpanded) {
+            e.currentTarget.style.transform = 'scale(1.05)';
+          }
+        }}
+        onMouseLeave={(e) => {
+          if (!isExpanded) {
+            e.currentTarget.style.transform = 'scale(1)';
+          }
+        }}
+        onMouseDown={(e) => {
+          if (!isExpanded) {
+            e.currentTarget.style.transform = 'scale(0.95)';
+          }
+        }}
+        onMouseUp={(e) => {
+          if (!isExpanded) {
+            e.currentTarget.style.transform = 'scale(1.05)';
+          }
+        }}
+      >
+        {/* Left padding for button text when collapsed */}
+        <div className={`flex-shrink-0 transition-all duration-[400ms] ease-[cubic-bezier(0.34,1.56,0.64,1)] ${
+          isExpanded ? 'w-0' : 'w-3 md:w-4'
+        }`}></div>
+
+        {/* Search Icon */}
+        <div className={`flex items-center justify-center flex-shrink-0 transition-all duration-[400ms] ease-[cubic-bezier(0.34,1.56,0.64,1)] ${
+          isExpanded ? 'w-auto opacity-100 scale-100 pl-3 md:pl-4' : 'w-0 opacity-0 scale-0'
+        }`}>
+          <Search className="w-4 h-4 text-black transition-all duration-300 ease-out" />
         </div>
-      )}
+
+        {/* Input Field */}
+        <input
+          ref={searchInputRef}
+          type="text"
+          value={searchQuery}
+          onChange={(e) => handleSearch(e.target.value)}
+          placeholder="Search stories..."
+          className={`bg-transparent text-black placeholder-gray-400 font-mono text-xs md:text-sm outline-none transition-all duration-[400ms] ease-[cubic-bezier(0.34,1.56,0.64,1)] ${
+            isExpanded 
+              ? 'flex-1 opacity-100 px-2 translate-x-0' 
+              : 'w-0 opacity-0 pointer-events-none -translate-x-4'
+          }`}
+          style={{
+            transitionDelay: isExpanded ? '80ms' : '0ms'
+          }}
+        />
+
+        {/* Button Text / Close Button Container */}
+        <div className="relative flex items-center justify-center pr-3 md:pr-4 flex-shrink-0">
+          {/* SEARCH Text */}
+          <div 
+            className={`flex items-center justify-center py-2 transition-all duration-300 ease-out ${
+              isExpanded ? 'opacity-0 scale-75 pointer-events-none absolute' : 'opacity-100 scale-100'
+            }`}
+          >
+            <span className="text-xs font-medium tracking-wide text-black font-mono whitespace-nowrap">
+              SEARCH
+            </span>
+          </div>
+          
+          {/* Close Button */}
+          <div 
+            className={`transition-all duration-300 ease-out ${
+              isExpanded ? 'opacity-100 scale-100' : 'opacity-0 scale-0 pointer-events-none absolute'
+            }`}
+            style={{
+              transitionDelay: isExpanded ? '150ms' : '0ms'
+            }}
+          >
+            <button
+              onClick={handleClear}
+              className="w-6 h-6 rounded-full bg-black text-white hover:bg-gray-800 transition-all duration-150 ease-out hover:scale-110 active:scale-90 flex items-center justify-center"
+              aria-label="Close search"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

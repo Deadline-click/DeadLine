@@ -103,8 +103,7 @@ async function getEventDetails(slug: string): Promise<EventDetails | null> {
 
     const response = await fetch(url, {
       next: { 
-        tags: [`event-${slug}`],
-        revalidate: false
+        tags: [`event-${slug}`]
       },
       headers: {
         'Content-Type': 'application/json',
@@ -149,8 +148,7 @@ async function getEventUpdates(eventId: string): Promise<EventUpdate[]> {
       `${baseUrl}/api/get/updates?event_id=${encodeURIComponent(eventId)}&api_key=${apiKey}`,
       {
         next: { 
-          tags: [`event-${eventId}`],
-          revalidate: false
+          tags: [`event-${eventId}`]
         },
         headers: {
           'Content-Type': 'application/json',
@@ -196,8 +194,7 @@ async function getSourceTitles(sources: string[], eventId: string): Promise<Sour
           `${baseUrl}/api/get/title?url=${encodeURIComponent(trimmedUrl)}`,
           {
             next: {
-              tags: [`event-${eventId}`, `source-${domain}`],
-              revalidate: false
+              tags: [`event-${eventId}`, `source-${domain}`]
             },
             headers: {
               'Content-Type': 'application/json',
@@ -239,26 +236,60 @@ function truncateText(text: string, maxLength: number): string {
 }
 
 function generateDynamicKeywords(eventDetails: EventDetails): string[] {
-  const keywords = [
-    'forgotten news',
-    'abandoned case',
-    'justice delayed',
-    'collective amnesia',
+  const baseKeywords = [
+    'news archive',
+    'documented event',
+    'news documentation',
+    'archived story',
+    'event chronicle',
     eventDetails.location,
+    `${eventDetails.location} news`,
+    `${eventDetails.location} incident`,
   ];
 
+  const headlineWords = eventDetails.headline
+    .toLowerCase()
+    .split(' ')
+    .filter(word => word.length > 4)
+    .slice(0, 5);
+  
+  baseKeywords.push(...headlineWords);
+
   if (eventDetails.victims?.individuals?.length) {
-    keywords.push('victim advocacy', 'justice for victims');
+    baseKeywords.push('documented victims', 'archived case', 'news record');
   }
   if (eventDetails.victims?.groups?.length) {
-    keywords.push('marginalized communities', 'systemic injustice');
+    baseKeywords.push('community documentation', 'archived news', 'event registry');
   }
 
   if (eventDetails.accused?.individuals?.length || eventDetails.accused?.organizations?.length) {
-    keywords.push('accountability', 'alleged perpetrators');
+    baseKeywords.push('documented case', 'news archive', 'event documentation');
   }
 
-  return keywords;
+  if (eventDetails.incident_date) {
+    const year = new Date(eventDetails.incident_date).getFullYear();
+    baseKeywords.push(`${year} incident`, `${year} news archive`);
+  }
+
+  return [...new Set(baseKeywords)];
+}
+
+function extractEntitiesForSEO(eventDetails: EventDetails): string {
+  const entities: string[] = [];
+  
+  if (eventDetails.victims?.individuals) {
+    entities.push(...eventDetails.victims.individuals.map(v => v.name));
+  }
+  
+  if (eventDetails.accused?.individuals) {
+    entities.push(...eventDetails.accused.individuals.map(a => a.name));
+  }
+  
+  if (eventDetails.accused?.organizations) {
+    entities.push(...eventDetails.accused.organizations.map(o => o.name));
+  }
+  
+  return entities.filter(e => e && e.length > 0).join(', ');
 }
 
 type Props = {
@@ -275,8 +306,12 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   if (!eventDetails) {
     console.log('[generateMetadata] No event details found for slug:', slug);
     return {
-      title: 'Event Not Found - DEADLINE',
-      description: 'The requested event could not be found.',
+      title: 'Event Not Found | DEADLINE - Museum of Temporary Truths',
+      description: 'The requested event documentation could not be found on DEADLINE - Museum of Temporary Truths.',
+      robots: {
+        index: false,
+        follow: true,
+      }
     };
   }
 
@@ -290,29 +325,36 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const url = `${baseUrl}/event/${slug}`;
 
   const keywords = generateDynamicKeywords(eventDetails);
+  const entities = extractEntitiesForSEO(eventDetails);
+
+  const incidentYear = eventDetails.incident_date 
+    ? new Date(eventDetails.incident_date).getFullYear() 
+    : new Date(eventDetails.created_at).getFullYear();
 
   return {
-    title: `${title} | DEADLINE - They Cared. Then They Forgot.`,
-    description: `${description} Documented on DEADLINE - tracking stories the world abandoned.`,
-    keywords,
-    authors: [{ name: 'DEADLINE' }],
+    title: `${title} - ${eventDetails.location} ${incidentYear} | DEADLINE Museum of Temporary Truths`,
+    description: `${description} Documented by DEADLINE - Museum of Temporary Truths. Location: ${eventDetails.location}. A forgotten story that deserves remembrance.`,
+    keywords: keywords,
+    authors: [{ name: 'DEADLINE Documentation Team', url: baseUrl }],
     creator: 'DEADLINE',
-    publisher: 'DEADLINE',
+    publisher: 'DEADLINE - Museum of Temporary Truths',
     applicationName: 'DEADLINE',
+    category: 'News Documentation',
+    classification: 'Human Rights & Social Justice',
     openGraph: {
       type: 'article',
       url,
-      title: `${title} | DEADLINE`,
-      description: `${description} A story the world forgot.`,
-      siteName: 'DEADLINE - They Cared. Then They Forgot.',
+      title: `${title} | DEADLINE - Museum of Temporary Truths`,
+      description: `${description} Documented on DEADLINE - tracking stories the world abandoned. ${eventDetails.location}, ${incidentYear}.`,
+      siteName: 'DEADLINE - Museum of Temporary Truths',
       locale: 'en_US',
       images: [
         {
           url: imageUrl,
           width: 1200,
           height: 630,
-          alt: `${eventDetails.headline} - DEADLINE documentation`,
-          type: 'image/jpeg',
+          alt: `${eventDetails.headline} - DEADLINE documentation from ${eventDetails.location}`,
+          type: 'image/png',
         },
       ],
       publishedTime: eventDetails.created_at,
@@ -321,7 +363,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     twitter: {
       card: 'summary_large_image',
       title: `${title} | DEADLINE`,
-      description: `${description} They cared. Then they forgot.`,
+      description: `${description} Museum of Temporary Truths - ${eventDetails.location}, ${incidentYear}.`,
       images: [imageUrl],
       creator: '@deadline',
       site: '@deadline',
@@ -344,17 +386,23 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     metadataBase: new URL(baseUrl),
     other: {
       'og:image:secure_url': imageUrl,
-      'og:image:type': 'image/jpeg',
+      'og:image:type': 'image/png',
       'article:published_time': eventDetails.created_at,
       'article:modified_time': eventDetails.updated_at,
-      'article:tag': keywords.join(', '),
+      'article:author': 'DEADLINE Documentation Team',
+      'article:section': 'Forgotten News',
+      'article:tag': keywords.slice(0, 10).join(', '),
       'twitter:label1': 'Location',
       'twitter:data1': eventDetails.location,
-      'twitter:label2': 'Status',
-      'twitter:data2': 'Forgotten by mainstream media',
+      'twitter:label2': 'Year',
+      'twitter:data2': incidentYear.toString(),
+      'geo.region': eventDetails.location,
+      'geo.placename': eventDetails.location,
     },
   };
 }
+
+export const dynamic = 'force-dynamic';
 
 export default async function EventPage({ params }: Props) {
   const { slug } = await params;
@@ -414,19 +462,26 @@ export default async function EventPage({ params }: Props) {
   const upiName = process.env.NEXT_PUBLIC_UPI_NAME || '';
   const upiNote = process.env.NEXT_PUBLIC_UPI_NOTE || '';
 
-  const structuredData = {
+  const entities = extractEntitiesForSEO(safeEventDetails);
+
+  const newsArticleSchema = {
     '@context': 'https://schema.org',
     '@type': 'NewsArticle',
     headline: safeEventDetails.headline,
     description: truncateText(safeEventDetails.details?.overview || '', 155),
-    image: imageUrl,
+    image: {
+      '@type': 'ImageObject',
+      url: imageUrl,
+      width: 1200,
+      height: 630
+    },
     datePublished: safeEventDetails.created_at,
     dateModified: safeEventDetails.updated_at,
     author: {
       '@type': 'Organization',
       name: 'DEADLINE',
       url: baseUrl,
-      description: 'Documenting stories the world forgot - tracking abandoned justice cases and forgotten outrage'
+      description: 'Museum of Temporary Truths - Documenting stories the world forgot'
     },
     publisher: {
       '@type': 'Organization',
@@ -435,6 +490,8 @@ export default async function EventPage({ params }: Props) {
       logo: {
         '@type': 'ImageObject',
         url: `${baseUrl}/logo.png`,
+        width: 600,
+        height: 60
       },
     },
     mainEntityOfPage: {
@@ -442,49 +499,109 @@ export default async function EventPage({ params }: Props) {
       '@id': `${baseUrl}/event/${slug}`,
     },
     about: {
-      '@type': 'Thing',
+      '@type': 'Event',
       name: safeEventDetails.headline,
-      description: 'A documented case of forgotten justice and abandoned public interest'
+      description: safeEventDetails.details?.overview || '',
+      location: {
+        '@type': 'Place',
+        name: safeEventDetails.location
+      },
+      startDate: safeEventDetails.incident_date || safeEventDetails.created_at
     },
     keywords: generateDynamicKeywords(safeEventDetails).join(', '),
     articleBody: safeEventDetails.details?.overview || '',
-    locationCreated: {
-      '@type': 'Place',
-      name: safeEventDetails.location
+    inLanguage: 'en-US',
+    isAccessibleForFree: true,
+    isPartOf: {
+      '@type': 'WebSite',
+      name: 'DEADLINE - Museum of Temporary Truths',
+      url: baseUrl
     }
+  };
+
+  const breadcrumbSchema = {
+    '@context': 'https://schema.org',
+    '@type': 'BreadcrumbList',
+    itemListElement: [
+      {
+        '@type': 'ListItem',
+        position: 1,
+        name: 'Home',
+        item: baseUrl
+      },
+      {
+        '@type': 'ListItem',
+        position: 2,
+        name: 'Events',
+        item: `${baseUrl}/#events`
+      },
+      {
+        '@type': 'ListItem',
+        position: 3,
+        name: safeEventDetails.headline,
+        item: `${baseUrl}/event/${slug}`
+      }
+    ]
+  };
+
+  const organizationSchema = {
+    '@context': 'https://schema.org',
+    '@type': 'Organization',
+    name: 'DEADLINE',
+    alternateName: 'Museum of Temporary Truths',
+    url: baseUrl,
+    logo: `${baseUrl}/logo.png`,
+    description: 'Documenting forgotten stories, sewer deaths, and abandoned justice cases',
+    sameAs: [
+      'https://twitter.com/dxedline',
+      'https://facebook.com/deadline.click'
+    ]
   };
 
   const seoTextContent = `
     ${safeEventDetails.headline}. 
-    Location: ${safeEventDetails.location}. 
+    Incident Location: ${safeEventDetails.location}. 
+    Incident Date: ${safeEventDetails.incident_date ? new Date(safeEventDetails.incident_date).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : 'Date not specified'}.
     ${safeEventDetails.details?.overview || ''}
     ${safeEventDetails.details?.keyPoints?.map(kp => `${kp.label}: ${kp.value}`).join('. ') || ''}
-    ${safeEventDetails.victims?.individuals?.map(v => `Victim: ${v.name}. ${v.summary}`).join('. ') || ''}
-    ${safeEventDetails.victims?.groups?.map(g => `Affected group: ${g.name}. ${g.summary}`).join('. ') || ''}
-    ${safeEventDetails.accused?.individuals?.map(a => `Accused: ${a.name}. ${a.summary}`).join('. ') || ''}
-    ${safeEventDetails.accused?.organizations?.map(o => `Organization: ${o.name}. ${o.summary}`).join('. ') || ''}
-    ${safeEventDetails.timeline?.map(t => `${t.date}: ${t.context}`).join('. ') || ''}
-    This is a story documented by DEADLINE - a platform tracking cases that received public attention, then were abandoned and forgotten by mainstream media and society.
+    ${safeEventDetails.victims?.individuals?.length ? `Victims documented: ${safeEventDetails.victims.individuals.map(v => `${v.name} - ${v.summary}`).join('; ')}` : ''}
+    ${safeEventDetails.victims?.groups?.length ? `Affected communities: ${safeEventDetails.victims.groups.map(g => `${g.name} - ${g.summary}`).join('; ')}` : ''}
+    ${safeEventDetails.accused?.individuals?.length ? `Individuals accused: ${safeEventDetails.accused.individuals.map(a => `${a.name} - ${a.summary}`).join('; ')}` : ''}
+    ${safeEventDetails.accused?.organizations?.length ? `Organizations involved: ${safeEventDetails.accused.organizations.map(o => `${o.name} - ${o.summary}`).join('; ')}` : ''}
+    ${safeEventDetails.timeline?.length ? `Timeline of events: ${safeEventDetails.timeline.map(t => `${t.date}: ${t.context}`).join('. ')}` : ''}
+    ${entities ? `Key entities: ${entities}.` : ''}
+    This incident is documented by DEADLINE - Museum of Temporary Truths, a platform dedicated to preserving stories that received brief public attention before being abandoned and forgotten by mainstream media and society. These are the temporary truths that once mattered, then disappeared from collective memory. Every life has a voice. Every story deserves to be remembered.
+    Documentation tags: ${generateDynamicKeywords(safeEventDetails).join(', ')}.
+    Published: ${new Date(safeEventDetails.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}.
+    Last Updated: ${new Date(safeEventDetails.updated_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}.
+    Sources verified: ${sourcesWithTitles.length} reference sources.
   `.trim().replace(/\s+/g, ' ');
 
   return (
     <>
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(newsArticleSchema) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbSchema) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationSchema) }}
       />
       
       <div className="sr-only" aria-hidden="true">
-        <h1>{safeEventDetails.headline}</h1>
-        <p>{seoTextContent}</p>
-        <p>Keywords: {generateDynamicKeywords(safeEventDetails).join(', ')}</p>
-        <p>Published: {new Date(safeEventDetails.created_at).toLocaleDateString()}</p>
-        <p>Last Updated: {new Date(safeEventDetails.updated_at).toLocaleDateString()}</p>
-        <p>Location: {safeEventDetails.location}</p>
-        <p>DEADLINE - Museum of Temporary Truths - They Cared. Then They Forgot.</p>
+        <h1>{safeEventDetails.headline} - {safeEventDetails.location}</h1>
+        <div>{seoTextContent}</div>
+        <p>Category: Forgotten News, Abandoned Justice, Social Documentation</p>
+        <p>Type: Human Rights Documentation, News Archive</p>
+        <p>Platform: DEADLINE - Museum of Temporary Truths</p>
+        <p>Mission: Every life has a voice. Every story deserves to be remembered.</p>
       </div>
 
-      <div className="min-h-screen bg-gray-50 scroll-smooth" style={{ fontFamily: 'system-ui, -apple-system, sans-serif' }}>
+      <div className="min-h-screen bg-gray-50 scroll-smooth" style={{ fontFamily: 'system-ui, -apple-system, sans-serif' }} itemScope itemType="https://schema.org/NewsArticle">
         <header className="border-b border-black bg-white sticky top-0 z-50">
           <div className="max-w-full mx-auto px-6 py-3">
             <div className="flex items-center justify-between">
@@ -492,8 +609,8 @@ export default async function EventPage({ params }: Props) {
                 <Link 
                   href="/" 
                   className="text-black hover:opacity-70 transition-opacity flex items-center"
-                  title="Back to homepage"
-                  aria-label="Back to homepage"
+                  title="Back to DEADLINE homepage - Museum of Temporary Truths"
+                  aria-label="Back to DEADLINE homepage"
                 >
                   <svg 
                     xmlns="http://www.w3.org/2000/svg" 
@@ -509,32 +626,33 @@ export default async function EventPage({ params }: Props) {
                     <path d="M19 12H5M12 19l-7-7 7-7"/>
                   </svg>
                 </Link>
-                <a 
-                  href="/" 
+                <Link
+                  href="/"
                   className="text-xl font-black tracking-tight uppercase text-black hover:opacity-80 transition-opacity" 
                   style={{ fontFamily: 'Inter, system-ui, sans-serif' }}
-                  title="DEADLINE - Home"
-                  aria-label="DEADLINE Homepage"
+                  title="DEADLINE - Museum of Temporary Truths"
+                  aria-label="DEADLINE - Museum of Temporary Truths Homepage"
                 >
                   DEADLINE
-                </a>
+                </Link>
               </div>
               <nav className="flex space-x-4" aria-label="Article navigation">
-                <a href="#overview" className="text-xs font-normal text-black hover:underline transition-all duration-300 font-mono" title="View event overview">Overview</a>
-                <a href="#sources" className="text-xs font-normal text-black hover:underline transition-all duration-300 font-mono" title="View sources and references">Sources</a>
+                <a href="#overview" className="text-xs font-normal text-black hover:underline transition-all duration-300 font-mono" title="Jump to event overview section">Overview</a>
+                <a href="#sources" className="text-xs font-normal text-black hover:underline transition-all duration-300 font-mono" title="Jump to verified sources section">Sources</a>
               </nav>
             </div>
           </div>
         </header>
 
-        <article>
+        <article itemProp="articleBody">
           <section className="bg-black text-white py-8 border-b-2 border-black">
             <div className="max-w-full mx-auto px-6">
               <div className="space-y-3">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between flex-wrap gap-4">
                   <time 
                     className="px-3 py-1 bg-white text-black text-xs uppercase tracking-wider border border-black font-mono"
                     dateTime={safeEventDetails.incident_date || safeEventDetails.created_at}
+                    itemProp="datePublished"
                   >
                     {safeEventDetails.incident_date 
                       ? new Date(safeEventDetails.incident_date).toLocaleDateString('en-US', { 
@@ -561,19 +679,30 @@ export default async function EventPage({ params }: Props) {
                 <h1 
                   className="text-2xl md:text-3xl font-bold leading-tight tracking-tight text-white text-justify" 
                   style={{ fontFamily: 'Inter, system-ui, sans-serif' }}
+                  itemProp="headline"
                 >
                   {safeEventDetails.headline}
                 </h1>
                 <p className="text-base text-white text-justify font-mono">
-                  <span itemProp="locationCreated">{safeEventDetails.location}</span>
+                  <span itemProp="contentLocation" itemScope itemType="https://schema.org/Place">
+                    <span itemProp="name">{safeEventDetails.location}</span>
+                  </span>
                 </p>
+                <meta itemProp="dateModified" content={safeEventDetails.updated_at} />
+                <meta itemProp="author" content="DEADLINE Documentation Team" />
+                <meta itemProp="publisher" content="DEADLINE - Museum of Temporary Truths" />
               </div>
             </div>
           </section>
 
           <main className="max-w-full mx-auto px-6 py-8">
             <div className="max-w-none">
-              <ImageSlider images={safeEventDetails.images} />
+              <div itemProp="image" itemScope itemType="https://schema.org/ImageObject">
+                <ImageSlider images={safeEventDetails.images} />
+                <meta itemProp="url" content={imageUrl} />
+                <meta itemProp="width" content="1200" />
+                <meta itemProp="height" content="630" />
+              </div>
               <div id="overview">
                 <EventDetailsComponent 
                   eventDetails={safeEventDetails} 
@@ -593,16 +722,19 @@ export default async function EventPage({ params }: Props) {
               <h2 className="text-lg font-black tracking-tight uppercase mb-2 text-white" style={{ fontFamily: 'Inter, system-ui, sans-serif' }}>
                 DEADLINE
               </h2>
-              <p className="text-white text-sm font-mono">
+              <p className="text-white text-sm font-mono mb-2">
                 Museum of Temporary Truths
               </p>
             </div>
-            <nav className="flex justify-center space-x-6" aria-label="Footer navigation">
-              <a href="/about" className="text-xs font-normal text-white hover:underline transition-all duration-300 font-mono" title="About DEADLINE - Our Mission">About</a>
-              <a href="/report" className="text-xs font-normal text-white hover:underline transition-all duration-300 font-mono" title="Report a Forgotten Story">Report</a>
-              <a href="/policies" className="text-xs font-normal text-white hover:underline transition-all duration-300 font-mono" title="Our Documentation Policies">Policies</a>
-              <a href="/donate" className="text-xs font-normal text-white hover:underline transition-all duration-300 font-mono" title="Support DEADLINE's Work">Donate</a>
+            <nav className="flex justify-center space-x-6 mb-4" aria-label="Footer navigation">
+              <a href="/about" className="text-xs font-normal text-white hover:underline transition-all duration-300 font-mono" title="About DEADLINE - Our Mission and Purpose">About</a>
+              <a href="/report" className="text-xs font-normal text-white hover:underline transition-all duration-300 font-mono" title="Report a Forgotten Story to DEADLINE">Report</a>
+              <a href="/policies" className="text-xs font-normal text-white hover:underline transition-all duration-300 font-mono" title="DEADLINE Documentation Policies and Ethics">Policies</a>
+              <a href="/donate" className="text-xs font-normal text-white hover:underline transition-all duration-300 font-mono" title="Support DEADLINE's Documentation Work">Donate</a>
             </nav>
+            <p className="text-center text-xs text-white opacity-70 font-mono">
+              © {new Date().getFullYear()} DEADLINE. Every life has a voice.
+            </p>
           </div>
         </footer>
       </div>
